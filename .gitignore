@@ -1,0 +1,9 @@
+# Credentials / local environment — never commit
+.Renviron
+.env
+*.pgpass
+
+# R session artifacts
+.Rhistory
+.RData
+.Rproj.user/
