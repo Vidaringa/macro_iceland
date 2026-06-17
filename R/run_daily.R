@@ -22,6 +22,7 @@ library(rvest)
 library(xml2)
 library(httr2)
 library(fredr)
+library(quantmod)
 library(DBI)
 library(RPostgres)
 
