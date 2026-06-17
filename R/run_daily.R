@@ -20,6 +20,7 @@ library(tidyverse)
 library(chromote)
 library(rvest)
 library(xml2)
+library(httr2)
 library(fredr)
 library(DBI)
 library(RPostgres)
@@ -50,6 +51,9 @@ local({
 
 # Shared DB helpers (db_connect / db_upsert / db_ensure_table).
 source(file.path("R", "db", "db_helpers.R"))
+
+# Shared ECB Data Portal helper (ecb_series), used by the ECB rate source.
+source(file.path("R", "ingest", "ecb.R"))
 
 # Bond-attribute helpers (chromote scrape + Icelandic->English map) live in the
 # one-time pull script; the daily new-bond reconciliation in bonds.R reuses

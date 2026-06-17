@@ -21,3 +21,20 @@ Format per entry:
 ---
 
 <!-- entries below, newest grouped by cadence -->
+
+## Treasury bills / ríkisvíxlar rates, all maturities (daily) — Nasdaq Iceland / Lánamál
+- Access mode attempted: scrape
+- What I tried: (1) the JS-rendered lanamal.is landing page — the same page the
+  RIKB/RIKS scraper uses. It renders only two price tables, "Óverðtryggt" (RIKB)
+  and "Verðtryggt" (RIKS); the only orderbookid codes present are 8 RIKB + 5 RIKS
+  series. No ríkisvíxlar / RIKV / T-bill table or codes appear on the page at all.
+  (2) Probed plausible dedicated paths — lanamal.is/markadir/rikisvixlar,
+  /markadsupplysingar/rikisvixlar, /utgafa/rikisvixlar, /markadir — all return 404.
+- What happened: T-bills are not on the rendered landing page, and I will not
+  fabricate a download/scrape URL. It is possible there are simply no outstanding
+  ríkisvíxlar at the moment, or they are served from a different page / the Nasdaq
+  Iceland order book rather than the lanamal.is landing page.
+- What I need from you: the actual URL or order-book source where current
+  ríkisvíxlar bid/yield are listed (or confirmation that there are none
+  outstanding right now, in which case this can be parked until issuance resumes).
+
