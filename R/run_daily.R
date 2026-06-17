@@ -20,8 +20,33 @@ library(tidyverse)
 library(chromote)
 library(rvest)
 library(xml2)
+library(fredr)
 library(DBI)
 library(RPostgres)
+
+# API keys (e.g. the FRED key) live in the HOME .Renviron, but R only auto-reads
+# the .Renviron in the working directory — the repo root, which holds just the
+# PG connection vars. We must NOT blanket-load the HOME .Renviron: it defines a
+# DIFFERENT Postgres target (PGDATABASE/PGUSER) than the repo file, and loading
+# it would silently switch the run onto the wrong database. So we read the HOME
+# file into a temporary env and lift out only the keys we need, leaving the
+# already-loaded repo PG vars untouched.
+local({
+  home_renv <- path.expand("~/.Renviron")
+  if (file.exists(home_renv)) {
+    e <- new.env()
+    readRenviron <- NULL  # avoid accidental shadowing; use base explicitly below
+    # Parse KEY=VALUE / KEY = "VALUE" lines without mutating the session env.
+    lines <- readLines(home_renv, warn = FALSE)
+    kv <- stringr::str_match(lines, '^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*"?([^"]*)"?\\s*$')
+    keep <- c("FRED_API_KEY", "FREDR")  # only the keys daily ingest needs
+    for (i in which(!is.na(kv[, 2]) & kv[, 2] %in% keep)) {
+      if (!nzchar(Sys.getenv(kv[i, 2]))) {
+        do.call(Sys.setenv, setNames(list(kv[i, 3]), kv[i, 2]))
+      }
+    }
+  }
+})
 
 # Shared DB helpers (db_connect / db_upsert / db_ensure_table).
 source(file.path("R", "db", "db_helpers.R"))
