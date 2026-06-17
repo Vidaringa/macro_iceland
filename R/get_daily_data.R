@@ -21,7 +21,7 @@ db_connect <- function() {
 }
 
 # Upsert a tibble on its key columns: insert new rows, update existing ones,
-append the tail without rewriting history. Done via a staging temp table +
+# append the tail without rewriting history. Done via a staging temp table +
 # INSERT ... ON CONFLICT so re-running the daily job is idempotent.
 db_upsert <- function(con, table, tbl, conflict_cols) {
   if (nrow(tbl) == 0) return(invisible(0L))
@@ -51,6 +51,28 @@ db_upsert <- function(con, table, tbl, conflict_cols) {
   )
   on.exit(DBI::dbRemoveTable(con, staging, fail_if_missing = FALSE), add = TRUE)
   DBI::dbExecute(con, sql)
+}
+
+# Create a table if it does not already exist. `db_upsert` does INSERT INTO an
+# existing table (no implicit CREATE), so a source's first-ever run needs its
+# target table to exist. `cols` maps column name -> SQL type; `pk` names the
+# primary-key columns (the same columns later used as upsert conflict keys).
+db_ensure_table <- function(con, table, cols, pk) {
+  if (DBI::dbExistsTable(con, table)) return(invisible(FALSE))
+  col_defs <- paste(
+    DBI::dbQuoteIdentifier(con, names(cols)), unname(cols),
+    collapse = ", "
+  )
+  pk_clause <- paste0(
+    ", PRIMARY KEY (",
+    paste(DBI::dbQuoteIdentifier(con, pk), collapse = ", "),
+    ")"
+  )
+  DBI::dbExecute(con, sprintf(
+    "CREATE TABLE IF NOT EXISTS %s (%s%s)",
+    DBI::dbQuoteIdentifier(con, table), col_defs, pk_clause
+  ))
+  invisible(TRUE)
 }
 
 con <- db_connect()
@@ -235,7 +257,62 @@ get_cbi_reibor <- function(series = reibor_series,
 
 reibor_tbl <- get_cbi_reibor()
 
+db_ensure_table(con, "rates_reibor",
+                cols = c(date = "DATE", tenor = "TEXT", reibor = "DOUBLE PRECISION"),
+                pk = c("date", "tenor"))
 db_upsert(con, "rates_reibor", reibor_tbl, conflict_cols = c("date", "tenor"))
+
+
+# 2.5.0 ISK exchange rates: USD, EUR, GBP + trade-weighted index ----
+# Same CBI xmltimeseries feed. The currency mid-rates ("skráð miðgengi") live
+# in group 9 ("Opinbert viðmiðunargengi SÍ"), where each currency has three
+# IDs (buy/mid/sell) but only the mid is populated: USD 4055, EUR 4064,
+# GBP 4103. The trade-weighted index is in group 10 ("Gengisvísitölur SÍ"):
+# ID 4114 is the broad goods-trade weight (Vöruskiptavog víð), the headline
+# gengisvísitala. (The minor currencies in group 7 do NOT include the majors.)
+# Verified against each series' <Name>/<Description> captions.
+fx_series <- c(
+  "USD" = 4055,
+  "EUR" = 4064,
+  "GBP" = 4103,
+  "TWI" = 4114
+)
+
+get_cbi_fx <- function(series = fx_series,
+                       from = "2000-01-01", to = Sys.Date()) {
+
+  purrr::imap(series, \(id, label) {
+    url <- paste0(
+      "https://www.sedlabanki.is/xmltimeseries/Default.aspx?",
+      "DagsFra=", from,
+      "&DagsTil=", to,
+      "&TimeSeriesID=", id,
+      "&Type=xml"
+    )
+
+    x <- xml2::read_xml(url)
+    entries <- xml2::xml_find_all(x, ".//Entry")
+
+    tibble::tibble(
+      date  = lubridate::mdy_hms(
+        xml2::xml_text(xml2::xml_find_first(entries, ".//Date"))
+      ) |> as.Date(),
+      series = label,
+      value  = as.numeric(
+        xml2::xml_text(xml2::xml_find_first(entries, ".//Value"))
+      )
+    )
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::arrange(date, series)
+}
+
+fx_tbl <- get_cbi_fx()
+
+db_ensure_table(con, "fx_daily",
+                cols = c(date = "DATE", series = "TEXT", value = "DOUBLE PRECISION"),
+                pk = c("date", "series"))
+db_upsert(con, "fx_daily", fx_tbl, conflict_cols = c("date", "series"))
 
 
 
