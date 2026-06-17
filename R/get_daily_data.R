@@ -13,67 +13,11 @@ library(RPostgres)
 source(file.path("R", "get_bond_attributes.R"))
 
 # 1.1.0 DATABASE ----
-# Single shared Postgres connection for the whole daily run (not one per source).
-# Connection params come from the standard libpq env vars
-# (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD); RPostgres reads them itself.
-db_connect <- function() {
-  DBI::dbConnect(RPostgres::Postgres())
-}
-
-# Upsert a tibble on its key columns: insert new rows, update existing ones,
-# append the tail without rewriting history. Done via a staging temp table +
-# INSERT ... ON CONFLICT so re-running the daily job is idempotent.
-db_upsert <- function(con, table, tbl, conflict_cols) {
-  if (nrow(tbl) == 0) return(invisible(0L))
-  staging <- paste0("_stage_", table)
-  DBI::dbWriteTable(con, staging, as.data.frame(tbl),
-                    temporary = TRUE, overwrite = TRUE)
-  cols      <- DBI::dbQuoteIdentifier(con, names(tbl))
-  keys      <- DBI::dbQuoteIdentifier(con, conflict_cols)
-  updates   <- names(tbl)[!names(tbl) %in% conflict_cols]
-  set_clause <- if (length(updates) == 0) {
-    # key-only table: nothing to update, just skip duplicates
-    "NOTHING"
-  } else {
-    paste0("UPDATE SET ",
-           paste(sprintf("%1$s = EXCLUDED.%1$s",
-                         DBI::dbQuoteIdentifier(con, updates)),
-                 collapse = ", "))
-  }
-  sql <- sprintf(
-    "INSERT INTO %s (%s) SELECT %s FROM %s ON CONFLICT (%s) DO %s",
-    DBI::dbQuoteIdentifier(con, table),
-    paste(cols, collapse = ", "),
-    paste(cols, collapse = ", "),
-    DBI::dbQuoteIdentifier(con, staging),
-    paste(keys, collapse = ", "),
-    set_clause
-  )
-  on.exit(DBI::dbRemoveTable(con, staging, fail_if_missing = FALSE), add = TRUE)
-  DBI::dbExecute(con, sql)
-}
-
-# Create a table if it does not already exist. `db_upsert` does INSERT INTO an
-# existing table (no implicit CREATE), so a source's first-ever run needs its
-# target table to exist. `cols` maps column name -> SQL type; `pk` names the
-# primary-key columns (the same columns later used as upsert conflict keys).
-db_ensure_table <- function(con, table, cols, pk) {
-  if (DBI::dbExistsTable(con, table)) return(invisible(FALSE))
-  col_defs <- paste(
-    DBI::dbQuoteIdentifier(con, names(cols)), unname(cols),
-    collapse = ", "
-  )
-  pk_clause <- paste0(
-    ", PRIMARY KEY (",
-    paste(DBI::dbQuoteIdentifier(con, pk), collapse = ", "),
-    ")"
-  )
-  DBI::dbExecute(con, sprintf(
-    "CREATE TABLE IF NOT EXISTS %s (%s%s)",
-    DBI::dbQuoteIdentifier(con, table), col_defs, pk_clause
-  ))
-  invisible(TRUE)
-}
+# Shared DB helpers (db_connect / db_upsert / db_ensure_table) now live in a
+# single file so every cadence runner sources the same definitions instead of
+# redefining them inline. One shared Postgres connection for the whole daily run
+# (not one per source); params come from the standard libpq env vars.
+source(file.path("R", "db", "db_helpers.R"))
 
 con <- db_connect()
 
@@ -267,15 +211,17 @@ db_upsert(con, "rates_reibor", reibor_tbl, conflict_cols = c("date", "tenor"))
 # Same CBI xmltimeseries feed. The currency mid-rates ("skráð miðgengi") live
 # in group 9 ("Opinbert viðmiðunargengi SÍ"), where each currency has three
 # IDs (buy/mid/sell) but only the mid is populated: USD 4055, EUR 4064,
-# GBP 4103. The trade-weighted index is in group 10 ("Gengisvísitölur SÍ"):
-# ID 4114 is the broad goods-trade weight (Vöruskiptavog víð), the headline
-# gengisvísitala. (The minor currencies in group 7 do NOT include the majors.)
+# GBP 4103. The trade-weighted index is the narrow trade weight (vísitala
+# meðalgengis, viðskiptavog þröng), ID 4117. The same group also carries the
+# wide weights and the goods-only (vöruskiptavog) variants — 4114 Vöruskiptavog
+# víð, 4115 Vöruskiptavog þröng, 4116 Viðskiptavog víð — which we do not use.
+# (The minor currencies in group 7 do NOT include the majors.)
 # Verified against each series' <Name>/<Description> captions.
 fx_series <- c(
   "USD" = 4055,
   "EUR" = 4064,
   "GBP" = 4103,
-  "TWI" = 4114
+  "TWI" = 4117
 )
 
 get_cbi_fx <- function(series = fx_series,
