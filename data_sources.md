@@ -27,7 +27,7 @@
 | ⛔ | Treasury bill (ríkisvíxlar) rates, all maturities | Nasdaq Iceland / Lánamál | — not on landing page |
 | ✅ | REIBOR fixings — O/N, 1m, 3m, 6m | Nasdaq Iceland / Lánamál | `rates_reibor` |
 | ✅ | ISK vs USD / EUR / GBP + trade-weighted index | Seðlabankinn | `fx_daily` |
-| ⬜ | FX forwards | Seðlabankinn | |
+| ⛔ | FX forwards | Seðlabankinn | — not on XML feed |
 | ✅ | Fed funds rate | FRED | `rates_external` |
 | ✅ | US Treasury 2y / 10y | FRED | `rates_external` |
 | ✅ | ECB deposit rate | ECB | `rates_external` |
@@ -45,10 +45,10 @@
 
 | S | Series | Source | DB table |
 |---|---|---|---|
-| ⬜ | Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn | |
-| ⬜ | New mortgage lending | Seðlabankinn | |
-| ⬜ | Bank lending to firms | Seðlabankinn | |
-| ⬜ | Foreign ownership of government bonds | Seðlabankinn | |
+| ⛔ | Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn | — not on XML feed (Excel) |
+| ⛔ | New mortgage lending | Seðlabankinn | — not on XML feed (Excel) |
+| ⛔ | Bank lending to firms | Seðlabankinn | — not on XML feed (Excel) |
+| ⛔ | Foreign ownership of government bonds | Seðlabankinn | — not on XML feed (Excel) |
 | ✅ | Reserves (total, USD millions) | Seðlabankinn | `reserves` † |
 | ✅ | FX intervention (CBI buy/sell of FX) | Seðlabankinn | `fx_intervention` |
 | ✅ | CPI + core subindices (CPI, CPI ex-housing; index + YoY) | Hagstofa | `cpi` |
@@ -82,9 +82,9 @@
 | ✅ | Real GDP / domestic demand (+ private consumption, investment; real + YoY) | Hagstofa | `national_accounts` |
 | ✅ | Current account (BoP) | Seðlabankinn (SDDS feed) | `current_account` † |
 | ⛔ | Terms of trade | Hagstofa | — PX-Web table stale at 2021 |
-| ⬜ | Output-gap estimate | Seðlabankinn | |
-| ⬜ | Pension-system foreign asset share vs ceiling | Seðlabankinn | |
-| ⬜ | Reserves-adequacy components | Seðlabankinn | |
+| ⛔ | Output-gap estimate | Seðlabankinn | — not on XML feed (Bulletin) |
+| ⛔ | Pension-system foreign asset share vs ceiling | Seðlabankinn | — not on XML feed |
+| ⛔ | Reserves-adequacy components | Seðlabankinn | — not on XML feed |
 | ⬜ | Gallup corporate sentiment / hiring intentions | Gallup | |
 | ⬜ | Trading-partner GDP / euro-area composite | OECD / Eurostat | |
 

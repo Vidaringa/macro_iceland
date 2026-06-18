@@ -22,6 +22,34 @@ Format per entry:
 
 <!-- entries below, newest grouped by cadence -->
 
+## Seðlabankinn series NOT on the xmltimeseries feed (need Excel/dashboard URL)
+The CBI xmltimeseries feed (Default.aspx?GroupID=/TimeSeriesID=) exposes only a
+sparse set of groups: 1 (CBI rates), 2 (penalty rates), 3 (CPI), 4 (interbank/
+REIBOR), 7-10 (FX rates/indices), 20 (fixed-term rates), 22 (Lánamál debt
+amounts), 30 (SDDS/NSDP macro), 40 (IKON). I catalogued each group by name and
+the following requested series are NOT present on the feed — they are CBI
+statistical releases published as Excel / interactive dashboards (per
+INGEST_TASK §4c). I will not fabricate download URLs.
+
+- **Card turnover** — domestic / abroad / foreign-in-Iceland (monthly). Not in
+  any feed group (the "greiðslumiðlun" statistics are an Excel/dashboard release).
+- **New mortgage lending** (monthly). Not on the feed.
+- **Bank lending to firms** (monthly). Not on the feed.
+- **Foreign ownership of government bonds** (monthly). Group 22 has foreign-
+  currency *debt* series and bill/bond *amounts outstanding*, but not the
+  non-resident *holdings of govt bonds* series requested.
+- **FX forwards** (daily). No "framvirk/forward/swap" series in FX groups 7-10.
+- **Output-gap estimate** (quarterly). A CBI Monetary Bulletin estimate, not a
+  feed series.
+- **Pension-system foreign-asset share vs ceiling** (quarterly). Not on the feed.
+- **Reserves-adequacy components** (quarterly). Group 30 has a "Template on
+  international reserves" (id 3514) that returns a near-zero structured template,
+  not the adequacy-ratio components.
+
+What I need from you: for each, the stable Excel/CSV download URL (or dashboard
+data endpoint) from the CBI statistics pages, or a confirmed TimeSeriesID if one
+exists in a group I haven't found. With a URL I'll wire the readxl/httr2 pull.
+
 ## Terms of trade / viðskiptakjör (quarterly) — Hagstofa
 - Access mode attempted: scrape (PX-Web)
 - What I tried: the only Hagstofa PX-Web terms-of-trade table is UTA07002.px
