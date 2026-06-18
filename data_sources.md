@@ -21,7 +21,7 @@
 
 | S | Series | Source | DB table |
 |---|---|---|---|
-| ✅ | Policy-rate components — 7-day term deposit (headline) | Seðlabankinn | `rates_policy` |
+| ✅ | Policy-rate components — 7-day deposit (headline), current account, overnight, collateralised lending | Seðlabankinn | `rates_policy` (headline) + `rates_policy_components` (all 4) |
 | ✅ | All RIKB (nominal) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
 | ✅ | All RIKS (indexed) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
 | ⛔ | Treasury bill (ríkisvíxlar) rates, all maturities | Nasdaq Iceland / Lánamál | — not on landing page |
@@ -39,11 +39,6 @@
 | ⬜ | UCITS ETF closes | (market data) | |
 | ⬜ | OMXI + all Icelandic listed closes / volume / turnover | Nasdaq Iceland | |
 
-> **Partial-pull note (policy rate):** the source listed the 7-day term deposit *plus*
-> current-account, overnight and collateralised-lending components, but the existing
-> `get_cbi_policy_rate()` pulls only the 7-day headline (TimeSeriesID 17923). The other
-> three components are not yet pulled — they need their own TimeSeriesIDs.
-
 ---
 
 ## Monthly
@@ -54,8 +49,8 @@
 | ⬜ | New mortgage lending | Seðlabankinn | |
 | ⬜ | Bank lending to firms | Seðlabankinn | |
 | ⬜ | Foreign ownership of government bonds | Seðlabankinn | |
-| ⬜ | Reserves | Seðlabankinn | |
-| ⬜ | FX intervention | Seðlabankinn | |
+| ✅ | Reserves (total, USD millions) | Seðlabankinn | `reserves` † |
+| ✅ | FX intervention (CBI buy/sell of FX) | Seðlabankinn | `fx_intervention` |
 | ✅ | CPI + core subindices (CPI, CPI ex-housing; index + YoY) | Hagstofa | `cpi` |
 | ✅ | Wage index | Hagstofa | `wage_index` |
 | ✅ | VAT turnover (bi-monthly; economy-wide total) | Hagstofa | `vat_turnover` |
@@ -85,13 +80,18 @@
 | S | Series | Source | DB table |
 |---|---|---|---|
 | ✅ | Real GDP / domestic demand (+ private consumption, investment; real + YoY) | Hagstofa | `national_accounts` |
-| ⛔ | Current account | Hagstofa (likely Seðlabankinn) | — see UNRESOLVED |
+| ✅ | Current account (BoP) | Seðlabankinn (SDDS feed) | `current_account` † |
 | ⛔ | Terms of trade | Hagstofa | — PX-Web table stale at 2021 |
 | ⬜ | Output-gap estimate | Seðlabankinn | |
 | ⬜ | Pension-system foreign asset share vs ceiling | Seðlabankinn | |
 | ⬜ | Reserves-adequacy components | Seðlabankinn | |
 | ⬜ | Gallup corporate sentiment / hiring intentions | Gallup | |
 | ⬜ | Trading-partner GDP / euro-area composite | OECD / Eurostat | |
+
+> **† Rolling-window note:** the Seðlabankinn SDDS/NSDP feed (current account,
+> reserves) serves only the last ~12 months, so these tables start shallow and
+> **accrete history forward** via upsert on each scheduled run — there is no deep
+> backfill from this endpoint. See `UNRESOLVED_SOURCES.md`.
 
 ---
 
