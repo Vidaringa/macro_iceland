@@ -16,11 +16,13 @@
 library(tidyverse)
 library(httr2)
 library(jsonlite)
+library(xml2)
 library(DBI)
 library(RPostgres)
 
 source(file.path("R", "db", "db_helpers.R"))
 source(file.path("R", "ingest", "hagstofa.R"))
+source(file.path("R", "ingest", "sedlabanki.R"))
 
 # 2.0.0 RUN ----
 con <- db_connect()

@@ -36,17 +36,23 @@ Format per entry:
   (possibly a Seðlabankinn series), or be derivable from current export/import
   price indices. Confirm the source so it isn't silently stale.
 
-## Current account / greiðslujöfnuður (quarterly) — listed as Hagstofa
-- Access mode attempted: scrape (PX-Web) — navigation only
-- What I tried: looked under Efnahagur/utanrikisverslun (only goods/services
-  trade balances there, not the full balance-of-payments current account) and
-  the national-accounts section.
-- What happened: Hagstofa PX-Web publishes goods/services trade, but the full
-  balance-of-payments CURRENT ACCOUNT in Iceland is a Seðlabankinn statistic, not
-  an obvious Hagstofa PX-Web table. data_sources.md attributes it to Hagstofa.
-- What I need from you: confirm the source. I will attempt the Seðlabankinn
-  balance-of-payments release when I build the Seðlabankinn block; if you have a
-  specific Hagstofa table id or a CB TimeSeriesID / Excel URL, that resolves it.
+## Seðlabankinn SDDS/NSDP series (group 30) — rolling-window backfill limit
+- Affects: current account (id 83), reserves (id 130), and any other group-30
+  NSDP.* series wired from the CBI xmltimeseries feed.
+- What happens: this feed serves only a rolling ~last-12-months window for SDDS
+  series, regardless of the DagsFra date requested. So a single run backfills
+  only ~1 year; deeper history is NOT available from this endpoint. The wired
+  sources are correct and accrete history forward via upsert on each scheduled
+  run — but they start shallow.
+- What I need from you (optional): if a DEEP backfill of current account /
+  reserves is needed for model training, point me at a CBI release that carries
+  full history (e.g. an Excel/CSV statistics download), and I'll add a one-time
+  backfill source. Otherwise this is just an awareness note — the live pulls work.
+
+## ~~Current account / greiðslujöfnuður (quarterly)~~ — RESOLVED
+- Resolved: wired from the Seðlabankinn SDDS feed (TimeSeriesID 83,
+  NSDP.EXS.BPCAAC...Q) into table `current_account`. See the rolling-window note
+  above for its (shallow, accreting) history depth.
 
 ## Treasury bills / ríkisvíxlar rates, all maturities (daily) — Nasdaq Iceland / Lánamál
 - Access mode attempted: scrape
