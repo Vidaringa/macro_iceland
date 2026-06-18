@@ -9,95 +9,105 @@
 > English snake_case DB columns; ISO dates as `Date` named `date`; ragged-edge series log
 > missing rather than fail; ex-ships/aircraft adjustment applied to investment-goods imports;
 > breakeven inflation and Brent-in-ISK are **derived downstream, not pulled**.
+>
+> **Status legend** (the `S` column): ✅ pulled — wired, verified, written to the named
+> Postgres table; ⛔ unresolved — attempted but not pullable, logged in
+> `UNRESOLVED_SOURCES.md` with details; ⬜ todo — not yet attempted; ➖ derived downstream
+> (not pulled). The DB table for each pulled series is noted after the source.
 
 ---
 
 ## Daily
 
-| Series | Source |
-|---|---|
-| Policy-rate components — 7-day term deposit (headline), current account, overnight, collateralised lending | Seðlabankinn |
-| All RIKB (nominal) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál |
-| All RIKS (indexed) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál |
-| Treasury bill (ríkisvíxlar) rates, all maturities | Nasdaq Iceland / Lánamál |
-| REIBOR fixings — O/N, 1m, 3m, 6m | Nasdaq Iceland / Lánamál |
-| ISK vs USD / EUR / GBP + trade-weighted index | Seðlabankinn |
-| FX forwards | Seðlabankinn |
-| Fed funds rate | FRED |
-| US Treasury 2y / 10y | FRED |
-| ECB deposit rate | ECB |
-| Bund 2y / 10y | ECB |
-| Brent crude | public |
-| Aluminium | public |
-| S&P 500 level + constituents (for breadth) | (market data) |
-| Forward P/E + CAPE | (market data) |
-| UCITS ETF closes | (market data) |
-| OMXI + all Icelandic listed closes / volume / turnover | Nasdaq Iceland |
+| S | Series | Source | DB table |
+|---|---|---|---|
+| ✅ | Policy-rate components — 7-day term deposit (headline) | Seðlabankinn | `rates_policy` |
+| ✅ | All RIKB (nominal) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
+| ✅ | All RIKS (indexed) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
+| ⛔ | Treasury bill (ríkisvíxlar) rates, all maturities | Nasdaq Iceland / Lánamál | — not on landing page |
+| ✅ | REIBOR fixings — O/N, 1m, 3m, 6m | Nasdaq Iceland / Lánamál | `rates_reibor` |
+| ✅ | ISK vs USD / EUR / GBP + trade-weighted index | Seðlabankinn | `fx_daily` |
+| ⬜ | FX forwards | Seðlabankinn | |
+| ✅ | Fed funds rate | FRED | `rates_external` |
+| ✅ | US Treasury 2y / 10y | FRED | `rates_external` |
+| ✅ | ECB deposit rate | ECB | `rates_external` |
+| ✅ | Bund 2y / 10y (stored as EA AAA-government curve) | ECB | `rates_external` |
+| ✅ | Brent crude | public (quantmod/Yahoo) | `commodities_daily` |
+| ✅ | Aluminium | public (quantmod/Yahoo) | `commodities_daily` |
+| ⬜ | S&P 500 level + constituents (for breadth) | (market data) | |
+| ⬜ | Forward P/E + CAPE | (market data) | |
+| ⬜ | UCITS ETF closes | (market data) | |
+| ⬜ | OMXI + all Icelandic listed closes / volume / turnover | Nasdaq Iceland | |
+
+> **Partial-pull note (policy rate):** the source listed the 7-day term deposit *plus*
+> current-account, overnight and collateralised-lending components, but the existing
+> `get_cbi_policy_rate()` pulls only the 7-day headline (TimeSeriesID 17923). The other
+> three components are not yet pulled — they need their own TimeSeriesIDs.
 
 ---
 
 ## Monthly
 
-| Series | Source |
-|---|---|
-| Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn |
-| New mortgage lending | Seðlabankinn |
-| Bank lending to firms | Seðlabankinn |
-| Foreign ownership of government bonds | Seðlabankinn |
-| Reserves | Seðlabankinn |
-| FX intervention | Seðlabankinn |
-| CPI + core subindices | Hagstofa |
-| Wage index | Hagstofa |
-| VAT turnover by sector (bi-monthly) | Hagstofa |
-| Consumer-goods imports | Hagstofa |
-| Investment-goods imports, ex ships/aircraft | Hagstofa |
-| Marine export values | Hagstofa |
-| Marine price index | Hagstofa |
-| Aluminium export volumes | Hagstofa |
-| Hotel overnight stays | Hagstofa |
-| Monthly LFS (labour force survey) | Hagstofa |
-| New company registrations | Hagstofa |
-| Insolvencies | Hagstofa |
-| Registered unemployment + register level + vacancies | Vinnumálastofnun |
-| House price index + purchase agreements + time-on-market | HMS |
-| New foreign domicile registrations | Þjóðskrá |
-| Keflavík passengers | Isavia / Ferðamálastofa |
-| New car registrations — private vs corporate/rental | Samgöngustofa |
-| Cement sales | (public) |
-| Alfreð job listings | Alfreð (scraped) |
-| Gallup consumer confidence | Gallup |
-| Google Trends | scraped / non-API |
+| S | Series | Source | DB table |
+|---|---|---|---|
+| ⬜ | Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn | |
+| ⬜ | New mortgage lending | Seðlabankinn | |
+| ⬜ | Bank lending to firms | Seðlabankinn | |
+| ⬜ | Foreign ownership of government bonds | Seðlabankinn | |
+| ⬜ | Reserves | Seðlabankinn | |
+| ⬜ | FX intervention | Seðlabankinn | |
+| ✅ | CPI + core subindices (CPI, CPI ex-housing; index + YoY) | Hagstofa | `cpi` |
+| ✅ | Wage index | Hagstofa | `wage_index` |
+| ✅ | VAT turnover (bi-monthly; economy-wide total) | Hagstofa | `vat_turnover` |
+| ✅ | Consumer-goods imports | Hagstofa | `trade_imports` |
+| ✅ | Investment-goods imports, ex ships/aircraft | Hagstofa | `trade_imports` |
+| ✅ | Marine export values | Hagstofa | `exports_marine_aluminium` |
+| ✅ | Marine price index | Hagstofa | `marine_price_index` |
+| ✅ | Aluminium export volumes (SITC 68 non-ferrous proxy) | Hagstofa | `exports_marine_aluminium` |
+| ✅ | Hotel overnight stays | Hagstofa | `hotel_nights` |
+| ✅ | Monthly LFS (labour force survey) | Hagstofa | `lfs` |
+| ✅ | New company registrations | Hagstofa | `company_registrations` |
+| ✅ | Insolvencies (bankruptcies) | Hagstofa | `company_registrations` |
+| ⬜ | Registered unemployment + register level + vacancies | Vinnumálastofnun | |
+| ⬜ | House price index + purchase agreements + time-on-market | HMS | |
+| ⬜ | New foreign domicile registrations | Þjóðskrá | |
+| ⬜ | Keflavík passengers | Isavia / Ferðamálastofa | |
+| ⬜ | New car registrations — private vs corporate/rental | Samgöngustofa | |
+| ⬜ | Cement sales | (public) | |
+| ⬜ | Alfreð job listings | Alfreð (scraped) | |
+| ⬜ | Gallup consumer confidence | Gallup | |
+| ⬜ | Google Trends | scraped / non-API | |
 
 ---
 
 ## Quarterly
 
-| Series | Source |
-|---|---|
-| Real GDP / domestic demand | Hagstofa |
-| Current account | Hagstofa |
-| Terms of trade | Hagstofa |
-| Output-gap estimate | Seðlabankinn |
-| Pension-system foreign asset share vs ceiling | Seðlabankinn |
-| Reserves-adequacy components | Seðlabankinn |
-| Gallup corporate sentiment / hiring intentions | Gallup |
-| Trading-partner GDP / euro-area composite | OECD / Eurostat |
+| S | Series | Source | DB table |
+|---|---|---|---|
+| ✅ | Real GDP / domestic demand (+ private consumption, investment; real + YoY) | Hagstofa | `national_accounts` |
+| ⛔ | Current account | Hagstofa (likely Seðlabankinn) | — see UNRESOLVED |
+| ⛔ | Terms of trade | Hagstofa | — PX-Web table stale at 2021 |
+| ⬜ | Output-gap estimate | Seðlabankinn | |
+| ⬜ | Pension-system foreign asset share vs ceiling | Seðlabankinn | |
+| ⬜ | Reserves-adequacy components | Seðlabankinn | |
+| ⬜ | Gallup corporate sentiment / hiring intentions | Gallup | |
+| ⬜ | Trading-partner GDP / euro-area composite | OECD / Eurostat | |
 
 ---
 
 ## Event-driven (as published)
 
-| Series | Source |
-|---|---|
-| Auction calendar + results + bid-to-cover | Lánamál |
-| Insider filings | Nasdaq Iceland |
-| Domestic earnings calendar + reported fundamentals | Nasdaq Iceland |
+| S | Series | Source |
+|---|---|---|
+| ⬜ | Auction calendar + results + bid-to-cover | Lánamál |
+| ⬜ | Insider filings | Nasdaq Iceland |
+| ⬜ | Domestic earnings calendar + reported fundamentals | Nasdaq Iceland |
 
 ---
 
 ## Derived (computed downstream, never scraped)
 
-| Series | Computed from |
-|---|---|
-| Breakeven inflation (incl. 2y headline) | fitted RIKB nominal curve − fitted RIKS real curve |
-| Brent-in-ISK | Brent crude × ISK/USD |
+| S | Series | Computed from |
+|---|---|---|
+| ➖ | Breakeven inflation (incl. 2y headline) | fitted RIKB nominal curve − fitted RIKS real curve |
+| ➖ | Brent-in-ISK | Brent crude × ISK/USD |
