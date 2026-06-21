@@ -7,3 +7,10 @@
 .Rhistory
 .RData
 .Rproj.user/
+
+# Quarto/Rmd preview output
+*.html
+*_files/
+
+# Logs
+*.log
