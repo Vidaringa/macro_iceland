@@ -46,3 +46,119 @@ cbi_series <- function(time_series_id, from = "2000-01-01", to = Sys.Date()) {
     dplyr::filter(!is.na(value)) |>
     dplyr::arrange(date)
 }
+
+# --- gagnabanki.is Excel reports (Angular blob downloads) -------------------
+#
+# The newer CBI data portal at https://gagnabanki.is/report/<report> serves each
+# report as an Angular SPA. Its "Excel" button does NOT hit a stable download URL
+# — the app fetches JSON and builds the .xlsx CLIENT-SIDE as a Blob, handing it
+# to URL.createObjectURL for a synthetic anchor download. There is therefore no
+# server endpoint to GET. We render the page headless (chromote), HOOK
+# URL.createObjectURL before clicking so we keep a reference to the Blob, click
+# the Excel button, then read the Blob back as base64 and write the bytes.
+#
+# `report` is the value of the page's `page=` query param (e.g.
+# "MARKETS.PENSIONFUNDS.LOANS.SECTOR.TABLE"); pages with a single default report
+# (e.g. "pension") can be addressed by the path slug alone with report = NULL.
+# Returns the path to a tempfile .xlsx (caller reads it with readxl).
+#
+# Requires chromote + jsonlite (jsonlite is attached by the runners; chromote
+# via ::). The wide date window asks the portal for full history (from 1997).
+gagnabanki_report_xlsx <- function(slug, report = NULL,
+                                   from = "1990-01-01", to = Sys.Date()) {
+  url <- paste0("https://gagnabanki.is/report/", slug,
+                "?from=", from, "&to=", to,
+                if (!is.null(report)) paste0("&page=", report) else "")
+
+  b <- chromote::ChromoteSession$new(wait_ = TRUE)
+  on.exit(b$close(), add = TRUE)
+  b$default_timeout <- 60
+  b$Page$navigate(url)
+  b$Page$loadEventFired(wait_ = TRUE)
+  Sys.sleep(8)  # Angular: report grid + Excel button render after load
+
+  # Hook createObjectURL so the Blob the app builds is retained on `window`.
+  b$Runtime$evaluate(paste0(
+    "window.__capturedBlob=null;(function(){var o=URL.createObjectURL;",
+    "URL.createObjectURL=function(b){try{if(b instanceof Blob)",
+    "window.__capturedBlob=b;}catch(e){}return o.apply(this,arguments);};})();'ok'"
+  ))
+  # Click the Excel export button (a mat-button whose label span reads 'Excel').
+  b$Runtime$evaluate(paste0(
+    "(function(){var s=Array.from(document.querySelectorAll",
+    "('span.mdc-button__label')).find(s=>s.textContent.trim()==='Excel');",
+    "if(!s)return'no-btn';(s.closest('button')||s).click();return'ok';})()"
+  ))
+  Sys.sleep(6)  # let the app fetch + build the workbook Blob
+
+  # Read the captured Blob as a base64 data URL (async -> awaitPromise).
+  b64 <- b$Runtime$evaluate(paste0(
+    "new Promise(function(res){var bl=window.__capturedBlob;",
+    "if(!bl){res('NO_BLOB');return;}var fr=new FileReader();",
+    "fr.onload=function(){res(fr.result.split(',')[1]);};fr.readAsDataURL(bl);})"
+  ), awaitPromise = TRUE)$result$value
+  if (identical(b64, "NO_BLOB") || is.null(b64)) {
+    stop("gagnabanki Excel export produced no Blob for report '", slug,
+         if (!is.null(report)) paste0("/", report) else "", "'")
+  }
+
+  tmp <- tempfile(fileext = ".xlsx")
+  writeBin(jsonlite::base64_dec(b64), tmp)
+  tmp
+}
+
+# Read a gagnabanki balance-sheet-style workbook (row labels in col A, a date
+# header in row 3 as "YYYY-MM" codes, data from col C to an ever-growing last
+# month) into a long (date, series, value) tibble for the requested rows.
+# `rows` is a named integer vector: names = series names to store under,
+# values = 1-based source row numbers (e.g. c(LOANS_HH = 15L)).
+gagnabanki_wide_rows <- function(xlsx, rows, sheet = 1) {
+  raw <- readxl::read_excel(xlsx, sheet = sheet,
+                            col_names = FALSE, .name_repair = "minimal")
+  # Date header is row 3, "YYYY-MM" from col C (3) to the last non-NA cell.
+  hdr       <- as.character(unlist(raw[3, ]))
+  date_cols <- which(!is.na(hdr) & grepl("^[0-9]{4}-[0-9]{2}$", hdr))
+  date_cols <- date_cols[date_cols >= 3]
+  dates     <- lubridate::ym(hdr[date_cols])  # first of month
+
+  purrr::imap_dfr(rows, function(row_num, series_name) {
+    tibble::tibble(
+      date   = dates,
+      series = series_name,
+      value  = as.numeric(unlist(raw[as.integer(row_num), date_cols]))
+    )
+  }) |>
+    dplyr::filter(!is.na(value)) |>
+    dplyr::arrange(date, series)
+}
+
+# Read a gagnabanki FAME-EXPORT workbook into a long (date, series, value)
+# tibble. These differ from the wide reports above: the date header is a row of
+# EXCEL SERIALS (not "YYYY-MM" strings), the header row and first data column
+# vary by report, and several blocks may repeat the same row labels. So the
+# caller passes `header_row`, `first_col` (1-based, e.g. 3 = col C, 2 = col B),
+# and `groups` — a named list mapping each output series name to the source row
+# number(s) to SUM (one number for a plain row, a vector to combine rows, e.g.
+# floating + fixed into one mortgage total).
+gagnabanki_serial_rows <- function(xlsx, sheet, header_row, first_col, groups) {
+  raw <- readxl::read_excel(xlsx, sheet = sheet,
+                            col_names = FALSE, .name_repair = "minimal")
+  serials   <- suppressWarnings(as.numeric(unlist(raw[header_row, ])))
+  date_cols <- which(!is.na(serials))
+  date_cols <- date_cols[date_cols >= first_col]
+  # Serials are month-END; floor to the first of the month so these align with
+  # the wide-report series (which key on month-start) for easy pairing/joins.
+  dates     <- lubridate::floor_date(
+    as.Date(serials[date_cols], origin = "1899-12-30"), "month")
+
+  purrr::imap_dfr(groups, function(row_nums, series_name) {
+    # Sum the requested source rows column-wise (na.rm so a partly-missing
+    # block still totals the available components).
+    vals <- vapply(date_cols, function(cc) {
+      sum(as.numeric(unlist(raw[as.integer(row_nums), cc])), na.rm = TRUE)
+    }, numeric(1))
+    tibble::tibble(date = dates, series = series_name, value = vals)
+  }) |>
+    dplyr::filter(!is.na(value)) |>
+    dplyr::arrange(date, series)
+}
