@@ -91,3 +91,12 @@ schedule_rscript(
   rscript   = file.path(repo_root, "R", "run_quarterly.R"),
   starttime = "17:00"
 )
+
+# Models run AFTER ingest (17:30, behind the 16:00/16:30/17:00 ingest tasks) so
+# they read the freshly upserted canonical series. Daily on purpose: upserts are
+# idempotent, so re-running just re-fits on the latest data and refreshes outputs.
+schedule_rscript(
+  taskname  = "macro_models",
+  rscript   = file.path(repo_root, "R", "run_models.R"),
+  starttime = "17:30"
+)
