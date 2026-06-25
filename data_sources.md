@@ -24,10 +24,10 @@
 | ✅ | Policy-rate components — 7-day deposit (headline), current account, overnight, collateralised lending | Seðlabankinn | `rates_policy` (headline) + `rates_policy_components` (all 4) |
 | ✅ | All RIKB (nominal) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
 | ✅ | All RIKS (indexed) government bond yields/prices, every outstanding series | Nasdaq Iceland / Lánamál | `bonds_daily` |
-| ⛔ | Treasury bill (ríkisvíxlar) rates, all maturities | Nasdaq Iceland / Lánamál | — not on landing page |
+| ✅ | Treasury bill (ríkisvíxlar) auction rates, all maturities | Lánamál | `tbill_auctions` ‡ |
 | ✅ | REIBOR fixings — O/N, 1m, 3m, 6m | Nasdaq Iceland / Lánamál | `rates_reibor` |
 | ✅ | ISK vs USD / EUR / GBP + trade-weighted index | Seðlabankinn | `fx_daily` |
-| ⛔ | FX forwards | Seðlabankinn | — not on XML feed |
+| ⛔ | FX forwards | Seðlabankinn | — not published (FX feed is spot only) |
 | ✅ | Fed funds rate | FRED | `rates_external` |
 | ✅ | US Treasury 2y / 10y | FRED | `rates_external` |
 | ✅ | ECB deposit rate | ECB | `rates_external` |
@@ -39,16 +39,21 @@
 | ⬜ | UCITS ETF closes | (market data) | |
 | ⬜ | OMXI + all Icelandic listed closes / volume / turnover | Nasdaq Iceland | |
 
+> **‡ Treasury bills:** no daily secondary-market quote exists (the lanamal.is
+> price tables and order book are RIKB/RIKS only). T-bill rates are published
+> only as **auction results** (~monthly), scraped from the lanamal.is RIKV result
+> articles into `tbill_auctions` and accreted forward. See `UNRESOLVED_SOURCES.md`.
+
 ---
 
 ## Monthly
 
 | S | Series | Source | DB table |
 |---|---|---|---|
-| ⛔ | Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn | — not on XML feed (Excel) |
-| ⛔ | New mortgage lending | Seðlabankinn | — not on XML feed (Excel) |
-| ⛔ | Bank lending to firms | Seðlabankinn | — not on XML feed (Excel) |
-| ⛔ | Foreign ownership of government bonds | Seðlabankinn | — not on XML feed (Excel) |
+| ✅ | Card turnover — domestic / abroad / foreign-in-Iceland | Seðlabankinn | `card_turnover` |
+| ✅ | New mortgage lending | Seðlabankinn | `bank_new_mortgages` |
+| ✅ | Bank lending to firms | Seðlabankinn | `bank_loans_sector` |
+| ✅ | Foreign ownership of government bonds (by holder type) | Seðlabankinn (gagnabanki) | `govt_bond_owners` |
 | ✅ | Reserves (total, USD millions) | Seðlabankinn | `reserves` † |
 | ✅ | FX intervention (CBI buy/sell of FX) | Seðlabankinn | `fx_intervention` |
 | ✅ | CPI + core subindices (CPI, CPI ex-housing; index + YoY) | Hagstofa | `cpi` |
@@ -81,10 +86,10 @@
 |---|---|---|---|
 | ✅ | Real GDP / domestic demand (+ private consumption, investment; real + YoY) | Hagstofa | `national_accounts` |
 | ✅ | Current account (BoP) | Seðlabankinn (SDDS feed) | `current_account` † |
-| ⛔ | Terms of trade | Hagstofa | — PX-Web table stale at 2021 |
-| ⛔ | Output-gap estimate | Seðlabankinn | — not on XML feed (Bulletin) |
-| ⛔ | Pension-system foreign asset share vs ceiling | Seðlabankinn | — not on XML feed |
-| ⛔ | Reserves-adequacy components | Seðlabankinn | — not on XML feed |
+| ✅ | Terms of trade (goods+services) | Hagstofa | `terms_of_trade` (derived from THJ01601 deflators) |
+| ✅ | Output-gap estimate | Seðlabankinn | `output_gap` (QMM forecast db `GAP`, ×100) |
+| ✅ | Pension-system foreign asset share vs ceiling | Seðlabankinn | `pension_foreign_assets` (monthly) |
+| ✅ | Reserves-adequacy components | Seðlabankinn | `reserves_adequacy` (FS report chart, semi-annual) |
 | ⬜ | Gallup corporate sentiment / hiring intentions | Gallup | |
 | ⬜ | Trading-partner GDP / euro-area composite | OECD / Eurostat | |
 

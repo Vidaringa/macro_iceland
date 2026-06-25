@@ -108,17 +108,19 @@ gagnabanki_report_xlsx <- function(slug, report = NULL,
 }
 
 # Read a gagnabanki balance-sheet-style workbook (row labels in col A, a date
-# header in row 3 as "YYYY-MM" codes, data from col C to an ever-growing last
-# month) into a long (date, series, value) tibble for the requested rows.
+# header in row 3 as "YYYY-MM" codes, data from `first_col` to an ever-growing
+# last month) into a long (date, series, value) tibble for the requested rows.
 # `rows` is a named integer vector: names = series names to store under,
-# values = 1-based source row numbers (e.g. c(LOANS_HH = 15L)).
-gagnabanki_wide_rows <- function(xlsx, rows, sheet = 1) {
+# values = 1-based source row numbers (e.g. c(LOANS_HH = 15L)). Most reports put
+# the first data column at C (the default); the balance-sheet OVERVIEW report
+# starts one column earlier at B, so `first_col` is overridable.
+gagnabanki_wide_rows <- function(xlsx, rows, sheet = 1, first_col = 3L) {
   raw <- readxl::read_excel(xlsx, sheet = sheet,
                             col_names = FALSE, .name_repair = "minimal")
-  # Date header is row 3, "YYYY-MM" from col C (3) to the last non-NA cell.
+  # Date header is row 3, "YYYY-MM" from `first_col` to the last non-NA cell.
   hdr       <- as.character(unlist(raw[3, ]))
   date_cols <- which(!is.na(hdr) & grepl("^[0-9]{4}-[0-9]{2}$", hdr))
-  date_cols <- date_cols[date_cols >= 3]
+  date_cols <- date_cols[date_cols >= first_col]
   dates     <- lubridate::ym(hdr[date_cols])  # first of month
 
   purrr::imap_dfr(rows, function(row_num, series_name) {
@@ -161,4 +163,44 @@ gagnabanki_serial_rows <- function(xlsx, sheet, header_row, first_col, groups) {
   }) |>
     dplyr::filter(!is.na(value)) |>
     dplyr::arrange(date, series)
+}
+
+# --- Govt-bond ownership (gagnabanki "securities" report) -------------------
+#
+# The gagnabanki report `securities` (Eigendur ríkisverðbréfa) and the historical
+# CSV raw_data/eigendur_rikisbrefa.csv share an IDENTICAL shape: one row per
+# (year, Icelandic-month, security `Heiti`) with eight holder-type columns. This
+# reshapes that wide frame (from either the live Excel or the CSV) into a long
+# (date, security, holder, value) tibble. `df` is the parsed sheet/CSV with the
+# original Icelandic column names; the three key columns are Ár / Mánuður / Heiti
+# and the remaining columns are the holder types, mapped to stable English codes.
+gagnabanki_bond_owners_long <- function(df) {
+  months <- c(jan = 1, feb = 2, mar = 3, apr = 4, "maí" = 5, "jún" = 6,
+              "júl" = 7, "ágú" = 8, sep = 9, okt = 10, "nóv" = 11, des = 12)
+  holders <- c(
+    "Bankar, sparisjóðir og lánafyrirtæki" = "BANKS",
+    "Verðbréfa- og fjárfestingarsjóðir"    = "MUTUAL_FUNDS",
+    "Lífeyrissjóðir"                       = "PENSION_FUNDS",
+    "Fyrirtæki"                            = "COMPANIES",
+    "Tryggingafélög"                       = "INSURERS",
+    "Einstaklingar"                        = "INDIVIDUALS",
+    "Aðrir"                                = "OTHERS",
+    "Erlendir aðilar"                      = "FOREIGN"
+  )
+
+  df |>
+    dplyr::rename(year = "Ár", month = "Mánuður", security = "Heiti") |>
+    dplyr::mutate(
+      date = lubridate::make_date(as.integer(.data$year),
+                                  months[.data$month], 1L)
+    ) |>
+    dplyr::select("date", "security", dplyr::all_of(names(holders))) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(names(holders)),
+      names_to = "holder", values_to = "value"
+    ) |>
+    dplyr::mutate(holder = unname(holders[.data$holder]),
+                  value = as.numeric(.data$value)) |>
+    dplyr::filter(!is.na(.data$value)) |>
+    dplyr::arrange(.data$date, .data$security, .data$holder)
 }
