@@ -65,9 +65,29 @@ schedule_rscript <- function(taskname, rscript, starttime,
 }
 
 # --- Scheduled tasks ---------------------------------------------------------
+#
+# All three runners fire DAILY, staggered so their chromote sessions / DB writes
+# don't overlap. run_monthly and run_quarterly are run daily on purpose even
+# though their sources publish monthly/quarterly: each runner upserts (re-runs
+# are idempotent no-ops), so daily polling simply catches every release the day
+# it lands — monthly/quarterly data arrives on irregular dates, so a fixed
+# monthly trigger could miss a late release until the next cycle. The cost is
+# only redundant fetches; nothing is double-written.
 
 schedule_rscript(
   taskname  = "macro_daily_data",
   rscript   = file.path(repo_root, "R", "run_daily.R"),
   starttime = "16:00"
+)
+
+schedule_rscript(
+  taskname  = "macro_monthly_data",
+  rscript   = file.path(repo_root, "R", "run_monthly.R"),
+  starttime = "16:30"
+)
+
+schedule_rscript(
+  taskname  = "macro_quarterly_data",
+  rscript   = file.path(repo_root, "R", "run_quarterly.R"),
+  starttime = "17:00"
 )
