@@ -17,8 +17,10 @@
 # 1.0.0 SETUP ----
 library(tidyverse)
 library(dfms)
+library(BVAR)
 library(DBI)
 library(RPostgres)
+# zoo is used via zoo:: (na.approx) in the A2 module; not attached to avoid masking.
 
 source(file.path("R", "db", "db_helpers.R"))
 
