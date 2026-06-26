@@ -90,11 +90,32 @@ chk("__FACTOR__ normalisation row present", has_factor)
 
 # 6.0.0 OUTPUTS LANDED ----
 chk("no NA in index", !anyNA(level$index))
-chk("all 5 groups decomposed",
+chk("all 6 groups decomposed",
     setequal(unique(contrib$group),
-             c("consumption", "labour", "housing", "external", "sentiment")))
+             c("consumption", "labour", "housing", "external", "sentiment", "financial")))
 chk("index current to latest data month",
     max(level$date) >= as.Date("2026-01-01"), sprintf("max date=%s", max(level$date)))
+
+# 6.5.0 ROBUSTNESS (v2) — COVID proportionate, not 10x+ every other event ----
+gfc_trough   <- min(level$index[level$date >= as.Date("2008-06-01") &
+                                level$date <= as.Date("2009-12-01")], na.rm = TRUE)
+covid_trough <- min(level$index[level$date >= as.Date("2020-01-01") &
+                                level$date <= as.Date("2020-12-01")], na.rm = TRUE)
+chk("COVID trough proportionate to GFC (robust scale; ratio < 6)",
+    covid_trough / gfc_trough < 6,
+    sprintf("COVID=%.2f GFC=%.2f ratio=%.1f", covid_trough, gfc_trough,
+            covid_trough / gfc_trough))
+
+# 6.6.0 LOW-CONFIDENCE FLAG (v2) — thin pre-2015 panel marked ----
+chk("pre-2015 flagged low-confidence, post-2015 not",
+    all(level$low_confidence[level$date <  as.Date("2015-01-01")]) &&
+    !any(level$low_confidence[level$date >= as.Date("2015-01-01")]))
+chk("observed-series count higher post-2015 than pre",
+    median(level$n_observed[!level$low_confidence]) >
+    median(level$n_observed[level$low_confidence]),
+    sprintf("pre=%d post=%d",
+            stats::median(level$n_observed[level$low_confidence]),
+            stats::median(level$n_observed[!level$low_confidence])))
 
 # 7.0.0 PLOT (in-memory; view interactively) ----
 recessions <- tibble::tibble(

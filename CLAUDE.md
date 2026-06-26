@@ -93,7 +93,15 @@ the tail and respect vintages. Prefer long (key + `value`) over wide. Carry a
 - **Fixed-once conventions:** standardisation/z-score windows, normalisation scales,
   forecast horizons/bands, curve family, settlement, benchmark — decided once and held
   constant, or cross-vintage comparison breaks. (A1 freezes its standardisation params in
-  `heatindex_standardisation`, insert-if-absent — never recomputed on a re-run.)
+  `heatindex_standardisation`, insert-if-absent, version-aware — recomputed only on a
+  `model_version` bump, never on an ordinary re-run.)
+- **A1 heat index is robust by design (v2):** robust standardisation (median/MAD, not
+  mean/SD) and winsorised fit inputs so a synchronised shock (COVID) stays proportionate
+  instead of dominating; FX trade-weighted depreciation is included as a financial-stress
+  signal. The pre-2015 panel is thin (most trade/VAT/mortgage series start 2013-2016), so
+  `heatindex_level.low_confidence` flags pre-2015 — the GFC is only partially observable
+  and is honestly marked, not faked. Don't "fix" the shallow GFC by forcing the model; it's
+  a data limit (Hagstofa exposes no deeper monthly trade — verified).
 
 ## Code style (global)
 
