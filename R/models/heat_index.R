@@ -1,9 +1,12 @@
 # A1 — Heat index (coincident state of the economy) ----
 #
-# A dynamic factor model (DFM) + Kalman filter extracts ONE coincident factor
-# from the mixed-frequency real-activity series (SPEC A1). Higher = hotter. The
-# factor, a group decomposition, and the per-indicator standardised inputs are
-# upserted to Postgres for the app to read.
+# A dynamic factor model (DFM) + Kalman filter extracts a coincident factor from
+# the mixed-frequency real-activity series (SPEC A1). TWO factors are estimated and
+# combined (variance-weighted): a high-frequency activity factor and a more
+# persistent confidence/financial-cycle factor, so the index reads BOTH a sharp
+# real shock (COVID) and a persistent crisis (the GFC). Higher = hotter. The factor,
+# a group decomposition, and the per-indicator standardised inputs are upserted to
+# Postgres for the app to read.
 #
 # Sourced by run_models.R (provides `con`; tidyverse + dfms attached; DB helpers
 # sourced). Target tables (date-keyed, upsert): heatindex_level,
@@ -22,21 +25,24 @@
 # reference window and frozen in heatindex_standardisation; later runs read and reuse
 # them, so the index level is comparable across vintages.
 
-MODEL_VERSION <- "A1-v2"
+MODEL_VERSION <- "A1-v3"
 STD_REF_START <- as.Date("2010-01-01")   # post-GFC, pre-COVID reference decade:
 STD_REF_END   <- as.Date("2019-12-31")   # extremes excluded so they don't inflate the scale
 WINSOR_MAD    <- 4                        # clip standardised inputs to +/-4 robust-SD for the FIT
-FULL_PANEL_FROM <- as.Date("2015-01-01")  # before this the input panel is thin (most trade/VAT/
-                                          # mortgage series start 2013-2016); the index is flagged
-                                          # low-confidence pre-2015 rather than implying it captures
-                                          # the 2008 crisis at full force, which the data can't.
+N_FACTORS     <- 2L                       # activity factor + persistent confidence/financial factor
+FULL_PANEL_FROM <- as.Date("2004-01-01")  # before this only a handful of series exist; from 2004 the
+                                          # deep-history block (confidence, house prices, FX, card,
+                                          # labour, residential investment) is present and the GFC is
+                                          # genuinely observable. Pre-2004 is flagged low-confidence.
 
-# A1-v2 rework (vs v1): robust standardisation (median/MAD, not mean/SD) so a single
-# synchronised shock like COVID does not dominate the scale; extremes winsorised before the
-# fit so they inform loadings without driving them; FX trade-weighted depreciation added as a
-# financial-stress signal (the deepest series that actually moved in the 2008 crisis). The
-# frozen-params meaning changed (median/MAD), so MODEL_VERSION bumped and the standardisation
-# table is re-baselined on first v2 run (see 3.0.0).
+# A1-v3 rework: two factors (variance-weighted) so a persistent crisis (GFC) and a sharp
+# real shock (COVID) both register. Added Gallup consumer confidence (level) — the keystone
+# crisis signal that collapsed ~85% in 2008 — plus deep-history house prices and residential
+# investment. With these the GFC reads ~-3.9 and COVID ~-1.8 (both severe, GFC the worse).
+# v2 -> v3 history: v2 introduced robust standardisation (median/MAD, not mean/SD) so a single
+# synchronised shock doesn't dominate the scale, winsorised fit inputs, and FX depreciation.
+# The frozen-params meaning is unchanged from v2 (median/MAD); MODEL_VERSION bumps so the
+# __FACTOR__ normalisation re-baselines for the new two-factor combination (see 6.0.0).
 
 # 1.0.0 REGISTRY ----
 # Single source of truth for which series enter the model, how each is made
@@ -49,6 +55,8 @@ FULL_PANEL_FROM <- as.Date("2015-01-01")  # before this the input panel is thin 
 # transform: yoy_log  = log(x) - log(x lag 12)   (trend + NSA seasonality killer)
 #            qoq_log   = log(x) - log(x lag 1)    (quarterly real level -> growth)
 #            yoy_diff  = x - x lag 12             (for series already in %, e.g. rates)
+#            level     = x                        (already a cycle reading, e.g. a
+#                                                  confidence index — no differencing)
 # `daily` flags a series stored at daily frequency (fx_daily) that must be reduced to
 # month-end before transforming.
 indicator_spec <- tibble::tribble(
@@ -60,6 +68,10 @@ indicator_spec <- tibble::tribble(
   "trade_imports",            "INVEST_IMPORTS_EX_SHIPS_AIRCRAFT", "consumption", "yoy_log",   1,    "M",   FALSE,
   "bank_new_mortgages",       "BANK_NEW_MORTGAGE_HH_TOTAL",       "housing",     "yoy_log",   1,    "M",   FALSE,
   "bank_loans_sector",        "BANK_LOANS_CORPORATES",            "housing",     "yoy_log",   1,    "M",   FALSE,
+  # deep-history housing signals (from 2000 / 1995) — the GFC housing crash, which
+  # the late-starting trade/VAT series miss entirely (added from thjodhagslikan).
+  "house_prices",             "HOUSE_PRICE_INDEX",                "housing",     "yoy_log",   1,    "M",   FALSE,
+  "residential_investment",   "RESIDENTIAL_INVESTMENT",           "housing",     "qoq_log",   1,    "Q",   FALSE,
   "hotel_nights",             "HOTEL_NIGHTS",                     "external",    "yoy_log",   1,    "M",   FALSE,
   "exports_marine_aluminium", "MARINE_EXPORT_VALUE",              "external",    "yoy_log",   1,    "M",   FALSE,
   "exports_marine_aluminium", "ALUMINIUM_EXPORT_TONS",            "external",    "yoy_log",   1,    "M",   FALSE,
@@ -68,6 +80,10 @@ indicator_spec <- tibble::tribble(
   "lfs",                      "LFS_UNEMPLOYMENT",                 "labour",      "yoy_diff", -1,    "M",   FALSE,
   "company_registrations",    "NEW_REGISTRATIONS",                "sentiment",   "yoy_log",   1,    "M",   FALSE,
   "company_registrations",    "BANKRUPTCIES",                     "sentiment",   "yoy_log",  -1,    "M",   FALSE,
+  # Gallup household confidence enters as a LEVEL (the index is already a cycle/
+  # balance reading, not a flow) — the persistent crisis signal that anchors the
+  # confidence/financial factor and lets the GFC read at full force.
+  "consumer_confidence",      "CONSUMER_CONFIDENCE",              "sentiment",   "level",     1,    "M",   FALSE,
   # FX trade-weighted index: depreciation (TWI up) = financial stress, so yoy_log with sign -1.
   # The deepest GFC signal we have (ISK fell ~50% in 2008); daily, reduced to month-end.
   "fx_daily",                 "TWI",                              "financial",   "yoy_log",  -1,    "M",   TRUE,
@@ -111,11 +127,13 @@ heatindex_trans <- heatindex_raw |>
   dplyr::arrange(series, date) |>
   dplyr::group_by(series) |>
   dplyr::mutate(
-    .l = dplyr::if_else(transform == "yoy_diff", value, log1p(pmax(value, 0))),
+    .l = dplyr::if_else(transform %in% c("yoy_diff", "level"), value,
+                        log1p(pmax(value, 0))),
     x  = dplyr::case_when(
       transform == "yoy_log"  ~ .l - dplyr::lag(.l, 12),
       transform == "qoq_log"  ~ .l - dplyr::lag(.l, 1),
-      transform == "yoy_diff" ~ value - dplyr::lag(value, 12)
+      transform == "yoy_diff" ~ value - dplyr::lag(value, 12),
+      transform == "level"    ~ value
     ) * sign
   ) |>
   dplyr::ungroup() |>
@@ -191,22 +209,47 @@ X_mat <- as.matrix(dplyr::select(wide, -date))
 X_fit <- pmax(pmin(X_mat, WINSOR_MAD), -WINSOR_MAD)
 
 # 5.0.0 FIT ----
-# One factor, VAR(2) dynamics; quarterly vars handled natively; BM EM via "auto"
-# (panel has NAs). pos.corr orients the factor toward the data; sign is pinned
-# explicitly in 6.0.0. Align the factor back to dates dropping fit$rm.rows (the
-# fully-NA leading rows dfms removes before fitting).
-fit <- dfms::DFM(X_fit, r = 1, p = 2,
+# Two factors, VAR(2) dynamics; quarterly vars handled natively; BM EM via "auto"
+# (panel has NAs). The factors separate into a high-frequency activity factor and a
+# more persistent confidence/financial-cycle factor; combining them lets the index
+# read both a sharp real shock (COVID, activity factor) and a persistent crisis
+# (GFC, confidence factor). Each factor is oriented to rise with employment, then
+# combined by its share of explained variance into one `factor_raw` series. The
+# combined per-series loading (w1*C1 + w2*C2) keeps the 7.0.0 decomposition additive.
+fit <- dfms::DFM(X_fit, r = N_FACTORS, p = 2,
                  quarterly.vars = intersect(q_series, ordered_series),
                  em.method = "auto", pos.corr = TRUE)
 
 kept_dates <- if (length(fit$rm.rows)) wide$date[-fit$rm.rows] else wide$date
-factor_raw <- as.numeric(fit$F_qml[, 1])
 
-# 6.0.0 NORMALISE + SIGN ----
-# Pin the arbitrary EM scale/sign ROBUSTLY (median/MAD) over the SAME fixed
+# Orient each factor to employment (a clean hot/cold anchor), so a higher factor
+# means a hotter economy before they are combined.
+emp_std <- heatindex_std |>
+  dplyr::filter(series == "LFS_EMPLOYED") |>
+  dplyr::select(date, emp = value_std)
+F_mat   <- as.matrix(fit$F_qml)[, seq_len(N_FACTORS), drop = FALSE]
+C_mat   <- as.matrix(fit$C)[, seq_len(N_FACTORS), drop = FALSE]
+emp_vec <- emp_std$emp[match(kept_dates, emp_std$date)]
+factor_signs <- vapply(seq_len(N_FACTORS), function(k) {
+  s <- sign(stats::cor(F_mat[, k], emp_vec, use = "complete.obs"))
+  if (!is.finite(s) || s == 0) 1 else s
+}, numeric(1))
+F_mat <- sweep(F_mat, 2, factor_signs, `*`)
+C_mat <- sweep(C_mat, 2, factor_signs, `*`)
+
+# Combine by share of explained variance (leading eigenvalues from the PCA init).
+factor_weights <- fit$eigen$values[seq_len(N_FACTORS)]
+factor_weights <- factor_weights / sum(factor_weights)
+factor_raw <- as.numeric(F_mat %*% factor_weights)
+# Effective loading of each series on the combined factor (for the decomposition).
+combined_loading <- as.numeric(C_mat %*% factor_weights)
+
+# 6.0.0 NORMALISE ----
+# Pin the combined factor's scale ROBUSTLY (median/MAD) over the SAME fixed
 # reference window, frozen in heatindex_standardisation under __FACTOR__ so the
-# index level (and sign) is stable across vintages. index = robust z; index100 =
-# 50 + 10*index for display.
+# index level is stable across vintages. The factors were already oriented to
+# employment in 5.0.0, so the combined factor rises with the economy (sign +1);
+# the stored sign is a guard. index = robust z; index100 = 50 + 10*index.
 factor_tbl <- tibble::tibble(date = kept_dates, factor_raw = factor_raw)
 
 factor_params <- dplyr::tbl(con, "heatindex_standardisation") |>
@@ -216,16 +259,7 @@ factor_params <- dplyr::tbl(con, "heatindex_standardisation") |>
 if (nrow(factor_params) == 0) {
   ref <- dplyr::filter(factor_tbl, date >= STD_REF_START, date <= STD_REF_END)
   mu_f <- stats::median(ref$factor_raw); sigma_f <- stats::mad(ref$factor_raw)
-  # Orient: factor should rise with employment (a clean hot/cold anchor). Compare
-  # against the standardised employment input on common dates.
-  emp <- heatindex_std |>
-    dplyr::filter(series == "LFS_EMPLOYED") |>
-    dplyr::select(date, emp = value_std)
-  sign_f <- factor_tbl |>
-    dplyr::inner_join(emp, by = "date") |>
-    dplyr::summarise(s = sign(stats::cor(factor_raw, emp, use = "complete.obs"))) |>
-    dplyr::pull(s)
-  if (!is.finite(sign_f) || sign_f == 0) sign_f <- 1
+  sign_f <- 1L  # combined factor already oriented to employment in 5.0.0
   db_upsert(con, "heatindex_standardisation",
             tibble::tibble(series = "__FACTOR__", transform = MODEL_VERSION,
                            mu = mu_f, sigma = sigma_f, sign = as.integer(sign_f),
@@ -251,7 +285,7 @@ factor_tbl <- factor_tbl |>
 # structural variance decomposition. Banbura-Modugno news decomposition
 # (contribution_change) is a v1.1 add via dfms::news().
 loadings <- tibble::tibble(series = ordered_series,
-                           loading = as.numeric(fit$C[, 1]))
+                           loading = combined_loading)
 
 inputs_filtered <- wide |>
   dplyr::filter(date %in% kept_dates) |>

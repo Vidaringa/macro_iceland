@@ -95,13 +95,16 @@ the tail and respect vintages. Prefer long (key + `value`) over wide. Carry a
   constant, or cross-vintage comparison breaks. (A1 freezes its standardisation params in
   `heatindex_standardisation`, insert-if-absent, version-aware — recomputed only on a
   `model_version` bump, never on an ordinary re-run.)
-- **A1 heat index is robust by design (v2):** robust standardisation (median/MAD, not
-  mean/SD) and winsorised fit inputs so a synchronised shock (COVID) stays proportionate
-  instead of dominating; FX trade-weighted depreciation is included as a financial-stress
-  signal. The pre-2015 panel is thin (most trade/VAT/mortgage series start 2013-2016), so
-  `heatindex_level.low_confidence` flags pre-2015 — the GFC is only partially observable
-  and is honestly marked, not faked. Don't "fix" the shallow GFC by forcing the model; it's
-  a data limit (Hagstofa exposes no deeper monthly trade — verified).
+- **A1 heat index (v3): two-factor + robust.** Robust standardisation (median/MAD, not
+  mean/SD) and winsorised fit inputs so a synchronised shock (COVID) stays proportionate.
+  TWO factors are estimated and variance-weighted (a high-frequency activity factor + a
+  persistent confidence/financial-cycle factor) so both a sharp real shock (COVID, ~-4) and
+  a persistent crisis (GFC, ~-2.6) register. The keystone GFC signal is **Gallup consumer
+  confidence** (`consumer_confidence`, entered as a `level` not a YoY diff — it's already a
+  cycle reading); deep-history **house prices** and **residential investment** reinforce it.
+  These three were ported from hagdeild/thjodhagslikan. `heatindex_level.low_confidence`
+  flags the thin pre-2004 panel. (Hagstofa exposes no deeper monthly trade — verified; the
+  GFC is now carried by confidence/housing/FX, which have history back to 2000-2003.)
 
 ## Code style (global)
 

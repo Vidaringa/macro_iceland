@@ -69,13 +69,14 @@
 | ✅ | New company registrations | Hagstofa | `company_registrations` |
 | ✅ | Insolvencies (bankruptcies) | Hagstofa | `company_registrations` |
 | ⬜ | Registered unemployment + register level + vacancies | Vinnumálastofnun | |
-| ⬜ | House price index + purchase agreements + time-on-market | HMS | |
+| ✅ | House price index (whole country, monthly from 2000) | Hagstofa (sq endpoint) | `house_prices` |
+| ⬜ | Purchase agreements + time-on-market | HMS | |
+| ✅ | Gallup consumer confidence (Væntingavísitala, monthly from 2001) | Gallup (Looker embed, chromote) | `consumer_confidence` |
 | ⬜ | New foreign domicile registrations | Þjóðskrá | |
 | ⬜ | Keflavík passengers | Isavia / Ferðamálastofa | |
 | ⬜ | New car registrations — private vs corporate/rental | Samgöngustofa | |
 | ⬜ | Cement sales | (public) | |
 | ⬜ | Alfreð job listings | Alfreð (scraped) | |
-| ⬜ | Gallup consumer confidence | Gallup | |
 | ⬜ | Google Trends | scraped / non-API | |
 
 ---
@@ -85,6 +86,7 @@
 | S | Series | Source | DB table |
 |---|---|---|---|
 | ✅ | Real GDP / domestic demand (+ private consumption, investment; real + YoY) | Hagstofa | `national_accounts` |
+| ✅ | Residential investment (chain-volume SA, from 1995) | Hagstofa (THJ03111) | `residential_investment` |
 | ✅ | Current account (BoP) | Seðlabankinn (SDDS feed) | `current_account` † |
 | ✅ | Terms of trade (goods+services) | Hagstofa | `terms_of_trade` (derived from THJ01601 deflators) |
 | ✅ | Output-gap estimate | Seðlabankinn | `output_gap` (QMM forecast db `GAP`, ×100) |

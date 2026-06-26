@@ -36,7 +36,7 @@ recov <- win("2021-06-01", "2022-12-01")
 covid_decile <- mean(level$index <= covid, na.rm = TRUE)   # share of months at/below COVID level
 chk("COVID 2020 H1 is a deep trough (bottom decile)", covid < 0 && covid_decile <= 0.10,
     sprintf("covid=%.2f, %.0f%% of months <= it", covid, 100 * covid_decile))
-chk("GFC 2008-09 negative", gfc < 0, sprintf("gfc=%.2f", gfc))
+chk("GFC 2008-09 is a real trough (< -1.5)", gfc < -1.5, sprintf("gfc=%.2f", gfc))
 chk("2021-22 recovery hotter than 2016-18", recov > boom,
     sprintf("recov=%.2f vs boom=%.2f", recov, boom))
 
@@ -106,16 +106,23 @@ chk("COVID trough proportionate to GFC (robust scale; ratio < 6)",
     sprintf("COVID=%.2f GFC=%.2f ratio=%.1f", covid_trough, gfc_trough,
             covid_trough / gfc_trough))
 
-# 6.6.0 LOW-CONFIDENCE FLAG (v2) — thin pre-2015 panel marked ----
-chk("pre-2015 flagged low-confidence, post-2015 not",
-    all(level$low_confidence[level$date <  as.Date("2015-01-01")]) &&
-    !any(level$low_confidence[level$date >= as.Date("2015-01-01")]))
-chk("observed-series count higher post-2015 than pre",
+# 6.6.0 LOW-CONFIDENCE FLAG (v3) — thin pre-2004 panel marked ----
+# From 2004 the deep-history block (confidence, house prices, FX, card, labour,
+# residential investment) is present and the GFC is genuinely observable.
+chk("pre-2004 flagged low-confidence, post-2004 not",
+    all(level$low_confidence[level$date <  as.Date("2004-01-01")]) &&
+    !any(level$low_confidence[level$date >= as.Date("2004-01-01")]))
+chk("observed-series count higher post-2004 than pre",
     median(level$n_observed[!level$low_confidence]) >
     median(level$n_observed[level$low_confidence]),
     sprintf("pre=%d post=%d",
             stats::median(level$n_observed[level$low_confidence]),
             stats::median(level$n_observed[!level$low_confidence])))
+
+# 6.7.0 GALLUP CONFIDENCE drives the GFC (v3) — keystone signal present ----
+chk("consumer confidence is an input with non-trivial loading",
+    any(inputs$series == "CONSUMER_CONFIDENCE") &&
+    abs(unique(inputs$loading[inputs$series == "CONSUMER_CONFIDENCE"])[1]) > 0.05)
 
 # 7.0.0 PLOT (in-memory; view interactively) ----
 recessions <- tibble::tibble(
