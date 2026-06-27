@@ -1,10 +1,15 @@
 # A2 — Policy-rate path (BVAR density forecast) ----
 #
 # A Bayesian VAR produces a DENSITY forecast of the Central Bank policy rate (a
-# fan, not a point), conditioned on the macro state (SPEC A2). This first build is
-# the BVAR reading + persisted posterior draws (the scenario-engine foundation);
-# the market-implied and reaction-function (ordered-probit) readings are a planned
-# fast-follow.
+# fan, not a point), conditioned on the macro state (SPEC A2). The companion
+# market-implied reading (policy_rate_market.R) is the responsive near-term path;
+# this BVAR is the model-based density + persisted posterior draws (the scenario-
+# engine foundation). The reaction-function (ordered-probit) reading is still to
+# come. Note the BVAR is persistence-dominated (a level VAR on a ~0.93-AR policy
+# rate): it gives the conditional density and longer-horizon view, but does NOT
+# anticipate announced policy turns — that is the market reading's job, and both
+# are written to forecast_policy_rate (distinguished by `source`) for the app to
+# show side by side.
 #
 # Sourced by run_models.R (provides `con`; tidyverse + BVAR attached; DB helpers
 # sourced). Runs after A1 (heat_index.R) — it reads the heat-index factor as an
@@ -129,24 +134,36 @@ draws_long <- tibble::tibble(
 now <- Sys.time()
 
 # forecast_policy_rate — central path (q50) + fixed bands, long over (horizon, quantile).
+# `source` distinguishes this BVAR density reading from the market-implied path
+# (policy_rate_market.R) and the future reaction-function reading, which share this
+# table so the app reads all policy-rate forecasts uniformly (SPEC A2: three
+# readings side by side).
 forecast_tbl <- draws_long |>
   dplyr::group_by(horizon) |>
   dplyr::reframe(quantile = QUANTILES,
                  value    = stats::quantile(rate, QUANTILES)) |>
   dplyr::mutate(origin_date = origin_date,
                 forecast_date = origin_date %m+% months(horizon),
+                source = "bvar",
                 model_version = MODEL_VERSION, computed_at = now) |>
-  dplyr::select(origin_date, horizon, forecast_date, quantile, value,
+  dplyr::select(origin_date, horizon, forecast_date, source, quantile, value,
                 model_version, computed_at)
 
+# v1 of this table had no `source` column; drop it once so it recreates with the
+# current schema (the new PK includes source).
+if (DBI::dbExistsTable(con, "forecast_policy_rate") &&
+    !"source" %in% DBI::dbListFields(con, "forecast_policy_rate")) {
+  DBI::dbRemoveTable(con, "forecast_policy_rate")
+}
 db_ensure_table(con, "forecast_policy_rate",
                 cols = c(origin_date = "DATE", horizon = "INTEGER",
-                         forecast_date = "DATE", quantile = "DOUBLE PRECISION",
+                         forecast_date = "DATE", source = "TEXT",
+                         quantile = "DOUBLE PRECISION",
                          value = "DOUBLE PRECISION", model_version = "TEXT",
                          computed_at = "TIMESTAMPTZ"),
-                pk = c("origin_date", "horizon", "quantile"))
+                pk = c("origin_date", "horizon", "source", "quantile"))
 db_upsert(con, "forecast_policy_rate", forecast_tbl,
-          conflict_cols = c("origin_date", "horizon", "quantile"))
+          conflict_cols = c("origin_date", "horizon", "source", "quantile"))
 
 # bvar_policy_draws — full policy-rate draw x horizon for this origin vintage. The
 # scenario engine re-weights/filters these without re-fitting. Accretes by origin.

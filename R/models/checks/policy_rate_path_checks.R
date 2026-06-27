@@ -22,11 +22,15 @@ chk <- function(label, pass, detail = "") {
               if (nzchar(detail)) paste0(" — ", detail) else ""))
 }
 
-origin <- max(fc$origin_date)
-fc_o <- dplyr::filter(fc, origin_date == origin)
+# Each source has its own forecast origin (BVAR anchored to the heat-index month,
+# market to the latest REIBOR month), so compute them separately.
+origin     <- max(fc$origin_date[fc$source == "bvar"])
+mkt_origin <- max(fc$origin_date[fc$source == "market"])
+fc_o   <- dplyr::filter(fc, origin_date == origin,     source == "bvar")
+fc_mkt <- dplyr::filter(fc, origin_date == mkt_origin, source == "market")
 
-# 1.0.0 STRUCTURE ----
-chk("18 horizons x 5 quantiles present",
+# 1.0.0 STRUCTURE (BVAR) ----
+chk("18 horizons x 5 quantiles present (bvar)",
     dplyr::n_distinct(fc_o$horizon) == 18 && dplyr::n_distinct(fc_o$quantile) == 5,
     sprintf("h=%d q=%d", dplyr::n_distinct(fc_o$horizon), dplyr::n_distinct(fc_o$quantile)))
 chk("quantiles are the fixed set",
@@ -73,6 +77,23 @@ chk("persisted draws reconstruct the band table",
     abs(recon - fc_p50_h12) < 1e-6,
     sprintf("draw p50=%.3f vs table=%.3f", recon, fc_p50_h12))
 
+# 4.5.0 MARKET-IMPLIED READING ----
+chk("market reading present at horizons 1/3/6",
+    setequal(fc_mkt$horizon, c(1L, 3L, 6L)),
+    sprintf("horizons=%s", paste(sort(fc_mkt$horizon), collapse = ",")))
+chk("market reading is a point path (quantile 0.5 only)",
+    all(fc_mkt$quantile == 0.5))
+mkt_1m <- fc_mkt$value[fc_mkt$horizon == 1]
+chk("market 1m near last actual rate (<=1pp gap)",
+    length(mkt_1m) == 1 && abs(mkt_1m - last_actual$policy_rate) <= 1.0,
+    sprintf("mkt 1m=%.2f vs actual=%.2f", mkt_1m, last_actual$policy_rate))
+# Frozen term premia should exist for each tenor over the fixed window.
+tp <- dplyr::tbl(con, "market_term_premium") |> dplyr::collect()
+chk("term premia frozen for 1M/3M/6M over fixed window",
+    setequal(tp$tenor, c("1M", "3M", "6M")) &&
+    all(tp$ref_start == as.Date("2015-01-01")) &&
+    all(tp$ref_end == as.Date("2019-12-31")))
+
 # 5.0.0 FAN CHART (in-memory; view interactively) ----
 hist <- dplyr::tbl(con, "rates_policy") |> dplyr::collect() |>
   dplyr::mutate(date = lubridate::floor_date(date, "month")) |>
@@ -92,12 +113,23 @@ p_fan <- ggplot2::ggplot() +
   ggplot2::geom_line(data = fan, ggplot2::aes(forecast_date, `q0.5`),
                      colour = "#08306b", linewidth = 0.7) +
   ggplot2::geom_line(data = hist, ggplot2::aes(date, policy_rate), linewidth = 0.6) +
-  ggplot2::labs(title = "A2 policy-rate path — BVAR density forecast",
-                subtitle = sprintf("origin %s; median + 68%%/90%% bands; black = actual", origin),
+  # market-implied path (REIBOR), anchored at the origin's last actual rate
+  ggplot2::geom_line(
+    data = dplyr::bind_rows(
+      tibble::tibble(forecast_date = origin, value = last_actual$policy_rate),
+      dplyr::select(fc_mkt, forecast_date, value)),
+    ggplot2::aes(forecast_date, value),
+    colour = "#cb181d", linewidth = 0.7, linetype = "21") +
+  ggplot2::geom_point(data = fc_mkt, ggplot2::aes(forecast_date, value),
+                      colour = "#cb181d", size = 1.8) +
+  ggplot2::labs(title = "A2 policy-rate path — BVAR density + market-implied",
+                subtitle = sprintf(
+                  "origin %s; blue = BVAR median + 68%%/90%% bands; red dashed = market (REIBOR); black = actual",
+                  origin),
                 x = NULL, y = "policy rate (%)") +
   ggplot2::theme_minimal(base_size = 12) +
   ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                  plot.title = ggplot2::element_text(face = "bold"))
 
 DBI::dbDisconnect(con)
-cat("\nView `p_fan` to inspect the forecast fan interactively.\n")
+cat("\nView `p_fan` to inspect the forecast fan (BVAR + market) interactively.\n")

@@ -69,7 +69,20 @@ headers.
 key. Created with `db_ensure_table`, written with `db_upsert` on the PK so re-runs append
 the tail and respect vintages. Prefer long (key + `value`) over wide. Carry a
 `model_version` constant and a `computed_at TIMESTAMPTZ`. Examples: `heatindex_level`,
-`forecast_policy_rate (date, horizon, quantile, value)`, `curve_nominal (date, maturity, yield)`.
+`forecast_policy_rate (origin_date, horizon, source, quantile, value)`, `curve_nominal (date, maturity, yield)`.
+
+## A2 policy-rate forecast: two readings (SPEC wants three)
+
+`forecast_policy_rate` holds multiple readings, distinguished by `source`:
+- `bvar` (`policy_rate_path.R`) — the BVAR density (median + 5/16/50/84/95 bands), 18m. A level
+  VAR on a ~0.93-AR rate: it's persistence-dominated and does NOT anticipate announced policy
+  turns. Full posterior draws persisted to `bvar_policy_draws` (scenario-engine foundation).
+- `market` (`policy_rate_market.R`) — the market-implied path from the REIBOR money-market curve,
+  point path to 6m only (REIBOR doesn't inform further). This is the reading that prices turns
+  the BVAR can't; term premia frozen over 2015-2019 in `market_term_premium`.
+- Each source has its OWN origin (BVAR = heat-index month; market = latest REIBOR month) — don't
+  assume one `max(origin_date)` across sources.
+- Still to build: the ordered-probit reaction-function reading (P(cut/hold/hike) per meeting).
 
 ## Conventions / gotchas
 
