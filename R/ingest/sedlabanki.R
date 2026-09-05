@@ -73,6 +73,13 @@ gagnabanki_report_xlsx <- function(slug, report = NULL,
   b <- chromote::ChromoteSession$new(wait_ = TRUE)
   on.exit(b$close(), add = TRUE)
   b$default_timeout <- 60
+  # Clicking "Excel" fires a synthetic anchor download, so Chrome ALSO saves the
+  # workbook to the OS download folder — one junk copy per report per run, which
+  # accumulates forever as "Útlán (70).xlsx" and the like. Only the Blob is
+  # wanted, and that is captured in-process below, so refuse the disk write.
+  # Wrapped in try(): older Chrome/chromote builds may not expose the command,
+  # and a missing download-deny must not fail the ingest.
+  try(b$Browser$setDownloadBehavior(behavior = "deny"), silent = TRUE)
   b$Page$navigate(url)
   b$Page$loadEventFired(wait_ = TRUE)
   Sys.sleep(8)  # Angular: report grid + Excel button render after load
