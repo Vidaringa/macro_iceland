@@ -71,28 +71,31 @@ policy_path_frame <- function(years = 5) {
 }
 
 policy_path_chart <- function(df, height = NULL) {
-  # Bands first, widest underneath: one hue, two opacities. Sequential, because
-  # the bands encode magnitude of uncertainty, not identity.
+  # Bands: one hue, two opacities. Sequential, because they encode magnitude of
+  # uncertainty, not identity. Drawn as fill-to-upper then mask-below-lower
+  # rather than as a stacked ribbon — ECharts accumulates positive and negative
+  # values into separate stacks, so the stacked form breaks on any series that
+  # crosses zero (see page_forecasts.R, where the heat fan exposed it). The
+  # policy rate never goes negative, but the same constructor shape is used for
+  # variables that do, so both use the sign-safe form.
   band <- function(e, lo, hi, opacity) {
     e |>
-      echarts4r::e_line_(lo, stack = paste0("b", opacity), symbol = "none",
-                         legend = FALSE, silent = TRUE,
+      echarts4r::e_line_(hi, symbol = "none", legend = FALSE, silent = TRUE,
                          lineStyle = list(opacity = 0),
-                         areaStyle = list(opacity = 0),
+                         areaStyle = list(color = TOK$accent, opacity = opacity,
+                                          origin = "start"),
                          tooltip = list(show = FALSE)) |>
-      echarts4r::e_line_(hi, stack = paste0("b", opacity), symbol = "none",
-                         legend = FALSE, silent = TRUE,
+      echarts4r::e_line_(lo, symbol = "none", legend = FALSE, silent = TRUE,
+                         connectNulls = FALSE,
                          lineStyle = list(opacity = 0),
-                         areaStyle = list(color = TOK$accent, opacity = opacity),
+                         areaStyle = list(color = TOK$surface, opacity = 1,
+                                          origin = "start"),
                          tooltip = list(show = FALSE))
   }
-  # Stacked bands need the ribbon width, not the absolute upper bound.
   d <- dplyr::arrange(df, .data$date)
-  d$.w90 <- d$q95 - d$q05
-  d$.w68 <- d$q84 - d$q16
   e <- echarts4r::e_charts_(d, "date", height = height)
-  e <- band(e, "q05", ".w90", 0.10)
-  e <- band(e, "q16", ".w68", 0.18)
+  e <- band(e, "q05", "q95", 0.10)
+  e <- band(e, "q16", "q84", 0.18)
 
   e |>
     echarts4r::e_line_("actual", name = "Stýrivextir",

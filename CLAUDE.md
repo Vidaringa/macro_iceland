@@ -71,6 +71,33 @@ the tail and respect vintages. Prefer long (key + `value`) over wide. Carry a
 `model_version` constant and a `computed_at TIMESTAMPTZ`. Examples: `heatindex_level`,
 `forecast_policy_rate (origin_date, horizon, source, quantile, value)`, `curve_nominal (date, maturity, yield)`.
 
+Forecast tables in use:
+- `forecast_policy_rate (origin_date, horizon, source, quantile)` — the policy rate's THREE
+  readings; `source` means reading-METHOD. Don't broaden it: the ordered-probit reading is a
+  pending occupant, and mixing quantities in would leave it dense in one cell, empty in ten.
+- `forecast_macro (origin_date, horizon, variable, quantile)` — A2's joint fit for every
+  modelled variable (inflation, heat, gap, ECB, FX). Units differ per `variable`, so none is
+  stored; the app resolves them from `app/R/labels.R`. The policy rate appears here AND in
+  `forecast_policy_rate` on purpose — they must agree exactly (a free cross-check).
+- `forecast_fx (origin_date, horizon, series, quantile)` + `bvar_fx_draws` — A6. `series`,
+  not `variable`, because the target is a canonical `fx_daily.series` code.
+
+## BVAR modules: shared helpers, and a package trap
+
+- `R/models/helpers_bvar.R` holds the scaffolding every BVAR module repeats
+  (`month_end_series`, `monthly_series`, `quarterly_to_monthly`, `bvar_simulate`,
+  `bvar_draws_long`, `bvar_bands`). `run_models.R` sources it explicitly and EXCLUDES it
+  from the model loop — it defines functions, it is not a module.
+- **`BVAR::predict()` is over-dispersed ~2.4×** on this install. Verified on synthetic data
+  with a known error sd of 2.40: fitted `sigma` is right (2.36) but `predict()` reports 5.7,
+  and the ratio does NOT shrink at n = 1000 or 5000, so it is not parameter uncertainty.
+  Use `bvar_simulate()` (simulates forward from each posterior draw) for anything where the
+  band matters — it recovers 2.34–2.36. A2 still uses `predict()` because a persistent LEVEL
+  forecast is dominated by the VAR dynamics and its bands check out; that is unverified for
+  any new module.
+- **Model files are sourced in sorted order**, so a module reading another's output must sort
+  after it (`isk_path.R` after `heat_index.R`). Name files accordingly.
+
 ## A2 policy-rate forecast: two readings (SPEC wants three)
 
 `forecast_policy_rate` holds multiple readings, distinguished by `source`:

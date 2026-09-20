@@ -77,6 +77,7 @@ ui <- function(req) {
     heat            = page_heat_ui(),
     policy          = page_policy_ui(),
     markets         = page_markets_ui(),
+    forecasts       = page_forecasts_ui(),
     about           = page_about_ui()
   )
 }
@@ -94,6 +95,7 @@ server <- function(input, output, session) {
   page_policy_table_server(output)
   page_markets_server()
   page_markets_tables_server(output)
+  page_forecasts_server()
 
   # Hidden pages are suspended while they are hidden, which is what keeps the
   # first paint cheap. Once the visible page has flushed, un-suspend the rest so

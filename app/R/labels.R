@@ -24,6 +24,7 @@ LABELS <- tibble::tribble(
   "heat",                   "page",    "Hitastig",                       "Heat index",                 "",    NA,    "hitastig",
   "policy",                 "page",    "Stýrivextir",                    "Policy rate",                "",    NA,    "styrivextir",
   "markets",                "page",    "Markaðir",                       "Markets",                    "",    NA,    "markadir",
+  "forecasts",              "page",    "Spár",                           "Forecasts",                  "",    NA,    "spar",
   "about",                  "page",    "Aðferðafræði",                   "Methodology",                "",    NA,    "adferdafraedi",
 
   # --- heat-index groups (fixed order = fixed colours in the stack) ----------
@@ -38,6 +39,17 @@ LABELS <- tibble::tribble(
   "bvar",                   "source",  "BVAR-dreifispá",                 "BVAR density",               "%",   1L,    NA,
   "market",                 "source",  "Markaðsvænting",                 "Market-implied",             "%",   2L,    NA,
   "reaction",               "source",  "Viðbragðsfall",                  "Reaction function",          "%",   3L,    NA,
+
+  # --- BVAR model variables (forecast_macro.variable / forecast_fx.series) ---
+  # Units differ per variable, which is why forecast_macro stores none: the
+  # dictionary is the single place that knows a heat factor is a z-score and an
+  # output gap is a percentage of potential.
+  "infl",                   "variable", "Verðbólga",                     "Inflation",                  "%",   1L,    NA,
+  "heat",                   "variable", "Hitastig hagkerfisins",         "Heat index",                 "",    1L,    NA,
+  "gap",                    "variable", "Framleiðsluspenna",             "Output gap",                 "%",   1L,    NA,
+  "d_ltwi",                 "variable", "Gengisbreyting",                "ISK monthly change",         "%",   1L,    NA,
+  "policy_rate",            "variable", "Stýrivextir",                   "Policy rate",                "%",   1L,    NA,
+  "ecb",                    "variable", "Innlánsvextir ECB",             "ECB deposit rate",           "%",   1L,    NA,
 
   # --- REIBOR tenors ---------------------------------------------------------
   "O/N",                    "tenor",   "O/N",                            "O/N",                        "%",   1L,    NA,

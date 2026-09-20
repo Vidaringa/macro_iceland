@@ -59,6 +59,23 @@ page_markets_ui <- function() {
                 data_to = vintage_of("fx_daily"))
     ),
 
+    htmltools::tags$div(
+      style = "margin-top:20px",
+      figure_ui("mk_isk_fan", "Óvissa um gengi krónunnar",
+                "Mánaðarleg breyting í prósentum — 68% og 90% óvissubil",
+                source = "Eigin útreikningur",
+                data_to = vintage_of("forecast_fx"),
+                computed_at = computed_of("isk"),
+                note = paste0(
+                  "Þetta er ÓVISSUMAT, ekki spá um stefnu. Mánaðarlegar ",
+                  "gengisbreytingar eru nánast ófyrirsjáanlegar: prófun utan ",
+                  "úrtaks sýnir enga marktæka hæfni til að spá fyrir um ",
+                  "átt þeirra. Bilið segir hversu stórar hreyfingar eru ",
+                  "líklegar — miðgildið segir lítið. Gengið er auk þess ",
+                  "stýrt fljótandi: Seðlabankinn hefur átt viðskipti á ",
+                  "millibankamarkaði í meirihluta mánaða."))
+    ),
+
     htmltools::tags$h2("Gengi", style = "margin:28px 0 12px"),
     htmltools::tags$div(class = "grid grid--3",
                         fx_tile("EUR"), fx_tile("USD"), fx_tile("GBP")),
@@ -195,6 +212,41 @@ page_markets_server <- function(id = "markets") {
     }),
     build = function(df) {
       chart_line(df, y = "value", unit = "", digits = 1, freq = "day")
+    }
+  )
+
+  # Density only, per the backtest verdict: the bands are the product and the
+  # median is not presented as a directional call.
+  figure_server(
+    "mk_isk_fan",
+    data = shiny::reactive({
+      fx <- dat("forecast_fx")
+      if (!nrow(fx)) return(tibble::tibble())
+      fx |>
+        dplyr::select("forecast_date", "quantile", "value") |>
+        tidyr::pivot_wider(names_from = "quantile", values_from = "value") |>
+        dplyr::rename_with(~ paste0("q", sub("^0\\.", "", .x)), -"forecast_date") |>
+        dplyr::rename(date = "forecast_date") |>
+        dplyr::rename_with(~ sub("^q5$", "q50", .x)) |>
+        dplyr::mutate(actual = NA_real_) |>
+        dplyr::arrange(.data$date)
+    }),
+    build = function(df) forecast_chart(df, unit = "%", digits = 2,
+                                        label = lbl("d_ltwi")),
+    table = function(df) {
+      fx <- dat("forecast_fx")
+      if (!nrow(fx)) return(tibble::tibble())
+      w <- fx |>
+        dplyr::filter(.data$horizon %in% c(1, 3, 6, 12, 18)) |>
+        dplyr::select("horizon", "forecast_date", "quantile", "value") |>
+        tidyr::pivot_wider(names_from = "quantile", values_from = "value")
+      tibble::tibble(
+        `Sjóndeild` = paste0(w$horizon, " mán."),
+        `Mánuður` = format(w$forecast_date, "%Y-%m"),
+        `90% bil` = paste0(
+          formatC(w[["0.05"]], format = "f", digits = 2, decimal.mark = ","),
+          "–",
+          formatC(w[["0.95"]], format = "f", digits = 2, decimal.mark = ",")))
     }
   )
 }

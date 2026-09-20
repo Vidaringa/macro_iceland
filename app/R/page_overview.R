@@ -90,6 +90,15 @@ page_overview_ui <- function() {
     ),
 
     htmltools::tags$div(
+      style = "margin-top:20px",
+      figure_ui("ov_infl", "Verðbólga og spáð þróun",
+                "Prósent — ársbreyting vísitölu neysluverðs og 18 mánaða dreifispá",
+                source = "Hagstofa Íslands, eigin útreikningur",
+                data_to = vintage_of("cpi"),
+                computed_at = computed_of("bvar"))
+    ),
+
+    htmltools::tags$div(
       class = "strip",
       htmltools::tags$span(htmltools::tags$b(lbl("latest_strip"))),
       lapply(seq_len(nrow(vint)), function(i) htmltools::tags$span(
@@ -166,5 +175,17 @@ page_overview_server <- function(id = "overview") {
     data = shiny::reactive(policy_path_frame(years = 5)),
     build = function(df) policy_path_chart(df),
     table = function(df) policy_path_table(df)
+  )
+
+  figure_server(
+    "ov_infl",
+    data = shiny::reactive({
+      h <- dplyr::filter(dat("cpi"), .data$series == "CPI_change_A") |>
+        dplyr::select("date", "value")
+      forecast_frame(h, "infl", years = 5)
+    }),
+    build = function(df) forecast_chart(df, unit = "%", digits = 2,
+                                        label = lbl("infl")),
+    table = function(df) forecast_table("infl")
   )
 }

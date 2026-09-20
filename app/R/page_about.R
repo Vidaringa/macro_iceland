@@ -85,6 +85,46 @@ page_about_ui <- function() {
             "Þriðja lesningin — viðbragðsfall með líkum á hækkun, óbreyttum ",
             "vöxtum eða lækkun á hverjum fundi — er í vinnslu."))),
 
+      htmltools::tags$h2("Þjóðhagsspár"),
+      htmltools::tags$p(
+        "Sama BVAR-líkan og spáir stýrivöxtum spáir samtímis verðbólgu, ",
+        "hitastigi hagkerfisins, framleiðsluspennu og gengisbreytingu. Það er ",
+        "eitt líkan, svo spárnar eru innbyrðis samkvæmar: þær lýsa einni ",
+        "framtíð, ekki fjórum óskyldum."),
+      htmltools::tags$p(
+        "Spárnar eru ", htmltools::tags$b("dreifispár", .noWS = "after"), ". ",
+        "Bilið — hversu ólíkar útkomur eru líklegar — er niðurstaðan; ",
+        "miðgildið er samantekt á dreifingunni en ekki fullyrðing um hvað ",
+        "gerist."),
+
+      htmltools::tags$h2("Gengisspá krónunnar"),
+      htmltools::tags$p(
+        "Sérstakt BVAR-líkan metur óvissu um mánaðarlega gengisbreytingu út frá ",
+        "vaxtamun við evrusvæðið, viðskiptajöfnuði, viðskiptakjörum og ",
+        "hitastigi hagkerfisins. Það er aðskilið frá vaxtalíkaninu af því að ",
+        "það spáir breytingu en ekki stöðu, og getur því notað ferskari gögn."),
+      htmltools::tags$details(
+        htmltools::tags$summary("Hvað líkanið gerir EKKI"),
+        htmltools::tags$ul(
+          htmltools::tags$li(
+            htmltools::tags$b("Það spáir ekki fyrir um átt gengisbreytinga."),
+            " Prófun utan úrtaks — líkanið endurmetið í hverjum mánuði og ",
+            "borið saman við það sem raunverulega gerðist — sýnir enga ",
+            "marktæka hæfni umfram hreina tilviljun þegar leiðrétt er fyrir ",
+            "fjölda prófana, og líkanið slær ekki út einfalda viðmiðunarspá um ",
+            "óbreytt gengi. Þetta er birt vegna þess að það er satt, ekki þrátt ",
+            "fyrir það: mánaðarlegar gengisbreytingar eru að mestu ",
+            "ófyrirsjáanlegar."),
+          htmltools::tags$li(
+            "Gagnlega niðurstaðan er ", htmltools::tags$b("óvissubilið", .noWS = "after"),
+            ": hversu stórar hreyfingar eru líklegar á næstu mánuðum. Það ",
+            "nýtist við ákvarðanir um gengisvarnir þótt áttin sé óþekkt."),
+          htmltools::tags$li(
+            "Krónan er stýrt fljótandi. Seðlabankinn hefur átt viðskipti á ",
+            "gjaldeyrismarkaði í meirihluta mánaða á tímabilinu, og inngrip ",
+            "hans ráðast af gengishreyfingum. Spáin er því skilyrt því að ",
+            "bankinn bregðist ekki við."))),
+
       htmltools::tags$h2("Markaðsgögn"),
       htmltools::tags$p(
         "Ávöxtunarkrafa ríkisbréfa er dagslokakrafa frá Nasdaq Iceland. Dagar ",
@@ -108,7 +148,7 @@ page_about_ui <- function() {
 
       htmltools::tags$h2("Heimildir"),
       htmltools::tags$ul(
-        htmltools::tags$li("Seðlabanki Íslands — vextir, gengi, forði, ríkisbréfaeign"),
+        htmltools::tags$li("Seðlabanki Íslands — vextir, gengi, forði, ríkisbréfaeign, greiðslujöfnuður"),
         htmltools::tags$li("Hagstofa Íslands — verðlag, vinnumarkaður, þjóðhagsreikningar, utanríkisviðskipti"),
         htmltools::tags$li("Nasdaq Iceland — ávöxtunarkrafa ríkisbréfa"),
         htmltools::tags$li("Gallup — væntingavísitala")),

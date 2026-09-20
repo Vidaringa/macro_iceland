@@ -73,6 +73,13 @@ READERS <- list(
       ORDER BY i."group", i.series') |> tibble::as_tibble()
   },
 
+  # Quarterly; the forecast is monthly, so the history line is a step between
+  # published quarters rather than an interpolation the model invented.
+  output_gap = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT date, value FROM output_gap ORDER BY date") |> tibble::as_tibble()
+  },
+
   heat_std = function(con) {
     DBI::dbGetQuery(con, "
       SELECT series, transform, mu, sigma, sign, ref_start, ref_end
@@ -93,6 +100,29 @@ READERS <- list(
             FROM forecast_policy_rate GROUP BY source) m
         USING (source, origin_date)
       ORDER BY f.source, f.horizon, f.quantile") |> tibble::as_tibble()
+  },
+
+  # The same BVAR fit's density for every modelled variable, not just the policy
+  # rate. Latest origin only — older vintages stay in the table but the app shows
+  # the current one.
+  forecast_macro = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT variable, origin_date, horizon, forecast_date, quantile, value,
+             model_version, computed_at
+      FROM forecast_macro
+      WHERE origin_date = (SELECT max(origin_date) FROM forecast_macro)
+      ORDER BY variable, horizon, quantile") |> tibble::as_tibble()
+  },
+
+  # The A6 ISK density. Its origin is its own — the TWI is daily, so this model
+  # can run fresher than the heat-index-tied A2.
+  forecast_fx = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT series, origin_date, horizon, forecast_date, quantile, value,
+             model_version, computed_at
+      FROM forecast_fx
+      WHERE origin_date = (SELECT max(origin_date) FROM forecast_fx)
+      ORDER BY series, horizon, quantile") |> tibble::as_tibble()
   },
 
   # --- rates, FX, prices -----------------------------------------------------
@@ -210,6 +240,9 @@ READERS <- list(
       UNION ALL SELECT 'tbill_auctions', max(date) FROM tbill_auctions
       UNION ALL SELECT 'heatindex_level', max(date) FROM heatindex_level
       UNION ALL SELECT 'forecast_policy_rate', max(origin_date) FROM forecast_policy_rate
+      UNION ALL SELECT 'forecast_macro', max(origin_date) FROM forecast_macro
+      UNION ALL SELECT 'forecast_fx', max(origin_date) FROM forecast_fx
+      UNION ALL SELECT 'current_account', max(date) FROM current_account
       UNION ALL SELECT 'bonds_daily', max(date) FROM bonds_daily
                 WHERE EXTRACT(ISODOW FROM date) <= 5") |> tibble::as_tibble()
   },
@@ -220,7 +253,10 @@ READERS <- list(
       FROM heatindex_level GROUP BY 1, 2
       UNION ALL
       SELECT source, model_version, max(computed_at)
-      FROM forecast_policy_rate GROUP BY 1, 2") |> tibble::as_tibble()
+      FROM forecast_policy_rate GROUP BY 1, 2
+      UNION ALL
+      SELECT 'isk', model_version, max(computed_at) FROM forecast_fx GROUP BY 1, 2")  |>
+      tibble::as_tibble()
   }
 )
 
