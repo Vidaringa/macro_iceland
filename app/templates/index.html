@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ site_name }}</title>
+<meta name="description" content="{{ site_tagline }}">
+
+<!-- Shiny's own head content FIRST: shiny.min.css and the htmlwidget
+     dependencies must load before app.css so our rules win the cascade. -->
+{{ headContent() }}
+
+<!-- Design tokens, generated from theme.R — the only copy of these values. -->
+<style>{{ tokens_css }}</style>
+
+<link rel="preload" href="fonts/InterVariable.woff2?v={{ asset_version }}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css?v={{ asset_version }}">
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+
+<!-- Route before first paint. Without this the browser shows every section
+     for one frame on a deep link, which is exactly the cheap flash to avoid.
+     Runs inline, ahead of Shiny connecting. -->
+<script>
+(function(){var h=(location.hash||"").replace(/^#\/?/,"").split("?")[0];
+document.documentElement.dataset.page=h||"yfirlit";})();
+</script>
+</head>
+
+<body>
+<a class="skip" href="#main">Beint í efni</a>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="wordmark" href="#/yfirlit">{{ site_name }}</a>
+    <p class="masthead__tag">{{ site_tagline }}</p>
+  </div>
+  <nav class="nav" aria-label="{{ nav_label }}">
+    <div class="wrap nav__inner">{{ nav }}</div>
+  </nav>
+</header>
+
+<div id="app-banner" class="banner" hidden role="status" aria-live="polite"></div>
+
+<main id="main" class="wrap">
+  <section data-page="yfirlit">{{ overview }}</section>
+  <section data-page="hitastig">{{ heat }}</section>
+  <section data-page="styrivextir">{{ policy }}</section>
+  <section data-page="markadir">{{ markets }}</section>
+  <section data-page="adferdafraedi">{{ about }}</section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p class="footer__disc">{{ disclaimer }}</p>
+    <p class="footer__vint">{{ vintages }}</p>
+  </div>
+</footer>
+
+<script type="application/json" id="app-config">{{ app_config_json }}</script>
+<script src="js/app.js?v={{ asset_version }}"></script>
+<!-- app.js registers the theme on load, which is before Shiny renders any
+     output, so every chart finds "editorial" already defined. -->
+
+</body>
+</html>

@@ -11,6 +11,8 @@
 # Quarto/Rmd preview output
 *.html
 *_files/
+# ...but the Shiny UI template is source, not preview output.
+!app/templates/*.html
 
 # Logs
 *.log
