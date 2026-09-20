@@ -82,21 +82,37 @@ gagnabanki_report_xlsx <- function(slug, report = NULL,
   try(b$Browser$setDownloadBehavior(behavior = "deny"), silent = TRUE)
   b$Page$navigate(url)
   b$Page$loadEventFired(wait_ = TRUE)
-  Sys.sleep(8)  # Angular: report grid + Excel button render after load
 
   # Hook createObjectURL so the Blob the app builds is retained on `window`.
+  # Installed BEFORE the first click so no export can be missed.
   b$Runtime$evaluate(paste0(
     "window.__capturedBlob=null;(function(){var o=URL.createObjectURL;",
     "URL.createObjectURL=function(b){try{if(b instanceof Blob)",
     "window.__capturedBlob=b;}catch(e){}return o.apply(this,arguments);};})();'ok'"
   ))
-  # Click the Excel export button (a mat-button whose label span reads 'Excel').
-  b$Runtime$evaluate(paste0(
+
+  # The Excel button is present in the DOM and ENABLED from the first paint,
+  # well before the report's data has arrived, and a click landing that early is
+  # a silent no-op: no fetch, no Blob, no error. That race — not any layout
+  # change — is what made this helper fail intermittently (the OVERVIEW report
+  # most often, being the largest). There is no reliable DOM readiness flag to
+  # wait on (the grid is virtualised, so it renders no rows and no spinner), so
+  # poll instead: click, wait briefly, and re-click until a Blob appears. The
+  # hook is idempotent and the app tolerates repeat clicks, so a click that did
+  # land simply wins the race; only the first Blob is kept.
+  click_excel <- paste0(
     "(function(){var s=Array.from(document.querySelectorAll",
     "('span.mdc-button__label')).find(s=>s.textContent.trim()==='Excel');",
     "if(!s)return'no-btn';(s.closest('button')||s).click();return'ok';})()"
-  ))
-  Sys.sleep(6)  # let the app fetch + build the workbook Blob
+  )
+  for (attempt in seq_len(12)) {
+    b$Runtime$evaluate(click_excel)
+    for (tick in seq_len(5)) {
+      Sys.sleep(1)
+      if (isTRUE(b$Runtime$evaluate("!!window.__capturedBlob")$result$value)) break
+    }
+    if (isTRUE(b$Runtime$evaluate("!!window.__capturedBlob")$result$value)) break
+  }
 
   # Read the captured Blob as a base64 data URL (async -> awaitPromise).
   b64 <- b$Runtime$evaluate(paste0(

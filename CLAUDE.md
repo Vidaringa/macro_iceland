@@ -101,6 +101,17 @@ the tail and respect vintages. Prefer long (key + `value`) over wide. Carry a
 - **Vintages respected:** upsert appends the tail; never silently overwrite history.
 - **Ex-ships/aircraft** adjustment is already applied in the `trade_imports` ingest
   (`INVEST_IMPORTS_EX_SHIPS_AIRCRAFT`).
+- **gagnabanki click race:** the report page's "Excel" button is enabled from the first
+  paint, before the data loads, and an early click is a SILENT no-op (no Blob, no error) —
+  the cause of the long-running intermittent `pension_*` / `bank_*` failures. There is no
+  DOM readiness flag (the grid is virtualised: no rows, no spinner), so
+  `gagnabanki_report_xlsx` clicks-polls-reclicks until the Blob appears. Never "fix" a
+  gagnabanki flake by lengthening a `Sys.sleep()`.
+- **Scraped portals move:** Seðlabankinn's publications page no longer lists individual
+  Fjármálastöðugleiki issues — `reserves_adequacy` resolves the latest issue from the TAG
+  ARCHIVE (`safnsida/?tag=ritið fjármálastöðugleiki`). Two report-slug styles coexist
+  (`fjarmalastodugleiki-2026-1` and `2024-03-13-Fjarmalastodugleiki-2024-1`), so match
+  case-insensitively and take the issue from the TRAILING `YYYY-N`.
 - **Derived, not pulled:** 2y breakeven inflation (fitted RIKB − RIKS curves) and
   Brent-in-ISK are computed downstream, never scraped.
 - **Fixed-once conventions:** standardisation/z-score windows, normalisation scales,

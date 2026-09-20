@@ -13,14 +13,19 @@
 # Target table: reserves_adequacy (date, series, value), upsert on (date, series).
 #
 # ACCESS MODE (c) — Excel-only, resolved live across three hops because nothing
-# here is stable: (1) the publications page lists the LATEST FS report (its URL
+# here is stable: (1) the FS TAG ARCHIVE lists every issue newest-first (its URL
 # carries the YYYY-N issue); (2) that report page links the chapter chart-data
 # workbook ("…gögn úr köflum", a rotating library itemid); (3) inside it the chart
 # is located by CONTENT — the sheet whose header carries "Samsett forðaviðmið" —
 # because the chart NUMBER drifts between issues. Columns are then found by header
 # name, and the quarter is col A as "qF YYYY" (1F = Q1). Values are already in %.
 
-FS_PUBLICATIONS <- "https://sedlabanki.is/frettir-og-utgefid-efni/rit-og-skyrslur/"
+# The publications landing page no longer lists individual issues (it links only
+# the standing Fjármálastöðugleiki section), so the latest issue is resolved from
+# the tag archive, which does list every issue newest-first.
+FS_PUBLICATIONS <- paste0(
+  "https://sedlabanki.is/frettir-og-utgefid-efni/safnsida/",
+  "?tag=riti%C3%B0%20fj%C3%A1rm%C3%A1last%C3%B6%C3%B0ugleiki")
 
 # Resolve + download the latest FS report's chapter chart-data workbook.
 cbi_fs_chapter_data_xlsx <- function() {
@@ -28,16 +33,23 @@ cbi_fs_chapter_data_xlsx <- function() {
   on.exit(b$close(), add = TRUE)
   b$default_timeout <- 60
 
-  # (1) Latest FS report link from the publications page (pick max YYYY-N).
+  # (1) Latest FS report link from the tag archive (pick max YYYY-N). Two slug
+  # styles coexist: recent issues are ".../grein/fjarmalastodugleiki-2026-1",
+  # older ones carry a publication-date prefix and capitalise the title
+  # (".../grein/2024-03-13-Fjarmalastodugleiki-2024-1") — so match
+  # case-insensitively and take the issue from the trailing YYYY-N, not the
+  # leading date. Álagspróf/Greiðslumiðlun share the tag and are excluded by
+  # requiring the title stem.
   b$Page$navigate(FS_PUBLICATIONS)
   b$Page$loadEventFired(wait_ = TRUE)
   Sys.sleep(5)
   href <- b$Runtime$evaluate("document.documentElement.outerHTML")$result$value |>
     rvest::read_html() |> rvest::html_elements("a") |> rvest::html_attr("href")
   fs <- unique(href[!is.na(href) &
-    grepl("grein/fjarmalastodugleiki-[0-9]{4}-[0-9]", href)])
+    grepl("grein/.*fjarmalastodugleiki-[0-9]{4}-[0-9]", href, ignore.case = TRUE)])
   if (length(fs) == 0) stop("No Financial Stability report link on publications page")
-  issue  <- as.integer(gsub("\\D", "", stringr::str_extract(fs, "[0-9]{4}-[0-9]")))
+  issue  <- as.integer(gsub("\\D", "",
+    stringr::str_extract(fs, "[0-9]{4}-[0-9]$")))
   report <- fs[which.max(issue)]
 
   # (2) Chapter chart-data workbook on that report page ("gögn úr köflum").
