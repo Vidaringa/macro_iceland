@@ -52,9 +52,51 @@ quarterly_to_monthly <- function(spine, q_tbl, col) {
     tidyr::fill(dplyr::all_of(col), .direction = "down")
 }
 
-# One variable's draws out of the draws x horizon x variable array `predict()`
-# returns, as a long tibble. The rep()/as.numeric() pairing relies on R filling
-# the draw x horizon matrix column-major, which holds for any single slice.
+# Predictive draws simulated directly from the posterior, returning the same
+# draws x horizon x variable array shape as BVAR::predict().
+#
+# WHY NOT USE predict(). BVAR::predict() is over-dispersed by a factor of ~2.4 on
+# this package version. Verified on synthetic data with a known error sd of 2.40:
+# the FITTED sigma comes back correct (2.36), but predict() reports a one-step sd
+# of 5.7-5.8, and the ratio does not shrink as the sample grows (n = 211, 1000,
+# 5000 all give ~2.4x), so it is not parameter uncertainty — correct draws would
+# converge on the truth. Simulating here recovers 2.34-2.36 against the same 2.40.
+#
+# This matters most for a near-white-noise target like the monthly FX change,
+# where the forecast IS essentially the error distribution: a 2.4x band would
+# claim +/-10% monthly moves against an observed sd of 2.4%, which is not a
+# defensible thing to publish. A2's policy-rate fan is much less affected — a
+# persistent level forecast is dominated by the VAR's dynamics, and its published
+# bands are sane against the data — so A2 is deliberately left on predict() until
+# it can be re-validated on its own terms.
+#
+# For each retained posterior draw: take that draw's coefficients and covariance
+# and iterate the VAR forward with fresh Gaussian shocks.
+bvar_simulate <- function(fit, Y, lags, horizon) {
+  beta <- fit$beta; sigma <- fit$sigma
+  n_draw <- dim(beta)[1]; k <- dim(beta)[3]
+  out <- array(NA_real_, dim = c(n_draw, horizon, k))
+  last <- Y[(nrow(Y) - lags + 1):nrow(Y), , drop = FALSE]   # oldest .. newest
+
+  for (i in seq_len(n_draw)) {
+    B <- beta[i, , ]
+    C <- tryCatch(chol(sigma[i, , ]), error = function(e) NULL)
+    if (is.null(C)) next          # skip a non-PD draw rather than fail the run
+    hist <- last
+    for (h in seq_len(horizon)) {
+      # Regressor row: intercept, then lag 1 .. lag N (most recent lag first).
+      x <- c(1, as.numeric(t(hist[rev(seq_len(lags)), , drop = FALSE])))
+      y <- as.numeric(x %*% B) + as.numeric(stats::rnorm(k) %*% C)
+      out[i, h, ] <- y
+      hist <- rbind(hist[-1, , drop = FALSE], y)
+    }
+  }
+  out
+}
+
+# One variable's draws out of a draws x horizon x variable array, as a long
+# tibble. The rep()/as.numeric() pairing relies on R filling the draw x horizon
+# matrix column-major, which holds for any single slice.
 bvar_draws_long <- function(fcast, var_index, horizon) {
   d <- fcast[, , var_index]
   tibble::tibble(
