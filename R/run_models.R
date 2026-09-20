@@ -23,15 +23,21 @@ library(RPostgres)
 # zoo is used via zoo:: (na.approx) in the A2 module; not attached to avoid masking.
 
 source(file.path("R", "db", "db_helpers.R"))
+# Shared BVAR scaffolding (pull/interpolate/bands/draws), used by A2 and A6.
+source(file.path("R", "models", "helpers_bvar.R"))
 
 # 2.0.0 RUN ----
 con <- db_connect()
 on.exit(DBI::dbDisconnect(con), add = TRUE)
 
+# Every top-level .R in R/models/ is a model, EXCEPT the helper file sourced
+# above — it defines functions and must not be run as a module.
 model_files <- list.files(
   file.path("R", "models"),
   pattern = "\\.R$", full.names = TRUE
-) |> sort()
+) |>
+  setdiff(file.path("R", "models", "helpers_bvar.R")) |>
+  sort()
 
 failures <- character()
 for (f in model_files) {

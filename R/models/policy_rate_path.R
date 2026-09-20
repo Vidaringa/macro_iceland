@@ -17,6 +17,9 @@
 # policy_rate. Target tables (upsert):
 #   forecast_policy_rate  (origin_date, horizon, quantile)  — central path + bands
 #   bvar_policy_draws     (origin_date, horizon, draw)       — full policy-rate draws
+#   forecast_macro        (origin_date, horizon, variable, quantile) — the SAME
+#     fit's density for every modelled variable (inflation, heat, gap, ECB, FX),
+#     not just the policy rate. The VAR is a joint system, so these come free.
 #
 # Compact-core variable set (estimable on the short ISK sample): policy rate,
 # CPI YoY inflation, A1 heat-index factor, ISK trade-weighted index (monthly log
@@ -36,42 +39,14 @@ SAMPLE_START  <- as.Date("2009-01-01")             # post-redenomination policy 
 # 1.0.0 PULL ----
 # Each daily series taken at month-end (the value prevailing at month close). CPI
 # YoY and the heat factor are already monthly. Output gap is quarterly.
-month_end <- function(tbl_name, val_col, out_col) {
-  dplyr::tbl(con, tbl_name) |>
-    dplyr::select(date, value = dplyr::all_of(val_col)) |>
-    dplyr::collect() |>
-    dplyr::mutate(m = lubridate::floor_date(date, "month")) |>
-    dplyr::group_by(m) |>
-    dplyr::slice_max(date, n = 1, with_ties = FALSE) |>
-    dplyr::ungroup() |>
-    dplyr::transmute(date = m, !!out_col := value)
-}
+# month_end_series / monthly_series live in R/models/helpers_bvar.R — the same
+# reductions are needed by the FX module, so they are shared rather than repeated.
+policy <- month_end_series(con, "rates_policy", series = NULL,
+                           out_col = "policy_rate", value_col = "policy_rate")
+twi    <- month_end_series(con, "fx_daily", "TWI", "twi")
+ecb    <- month_end_series(con, "rates_external", "ECB_DEPO", "ecb")
 
-policy <- month_end("rates_policy", "policy_rate", "policy_rate")
-twi    <- dplyr::tbl(con, "fx_daily") |>
-  dplyr::filter(series == "TWI") |>
-  dplyr::select(date, value) |>
-  dplyr::collect() |>
-  dplyr::mutate(m = lubridate::floor_date(date, "month")) |>
-  dplyr::group_by(m) |>
-  dplyr::slice_max(date, n = 1, with_ties = FALSE) |>
-  dplyr::ungroup() |>
-  dplyr::transmute(date = m, twi = value)
-ecb    <- dplyr::tbl(con, "rates_external") |>
-  dplyr::filter(series == "ECB_DEPO") |>
-  dplyr::select(date, value) |>
-  dplyr::collect() |>
-  dplyr::mutate(m = lubridate::floor_date(date, "month")) |>
-  dplyr::group_by(m) |>
-  dplyr::slice_max(date, n = 1, with_ties = FALSE) |>
-  dplyr::ungroup() |>
-  dplyr::transmute(date = m, ecb = value)
-
-infl <- dplyr::tbl(con, "cpi") |>
-  dplyr::filter(series == "CPI_change_A") |>
-  dplyr::select(date, value) |>
-  dplyr::collect() |>
-  dplyr::transmute(date = lubridate::floor_date(date, "month"), infl = value)
+infl <- monthly_series(con, "cpi", "CPI_change_A", "infl")
 heat <- dplyr::tbl(con, "heatindex_level") |>
   dplyr::filter(estimate_kind == "smoothed") |>
   dplyr::select(date, index) |>
@@ -91,10 +66,7 @@ gap_q <- dplyr::tbl(con, "output_gap") |>
 spine <- tibble::tibble(
   date = seq(SAMPLE_START, max(policy$date), by = "month")
 )
-gap_m <- spine |>
-  dplyr::left_join(gap_q, by = "date") |>
-  dplyr::mutate(gap = zoo::na.approx(gap, na.rm = FALSE)) |>
-  tidyr::fill(gap, .direction = "down")   # carry last gap forward at the ragged edge
+gap_m <- quarterly_to_monthly(spine, gap_q, "gap")
 
 dat <- spine |>
   dplyr::left_join(policy, by = "date") |>
@@ -114,6 +86,9 @@ origin_date <- max(dat_fit$date)
 
 # 3.0.0 FIT ----
 Y <- as.matrix(dplyr::select(dat_fit, -date))
+# Column order is load-bearing: policy_rate is column 1 so it stays the forecast
+# target sliced at 4.0.0, and these names index pred$fcast's third dimension.
+model_vars <- colnames(Y)
 fit <- BVAR::bvar(Y, lags = BVAR_LAGS, n_draw = N_DRAW, n_burn = N_BURN,
                   verbose = FALSE)
 
@@ -181,3 +156,39 @@ db_ensure_table(con, "bvar_policy_draws",
                 pk = c("origin_date", "horizon", "draw"))
 db_upsert(con, "bvar_policy_draws", draws_tbl,
           conflict_cols = c("origin_date", "horizon", "draw"))
+
+# 6.0.0 WRITE — the OTHER five variables ----
+# The VAR is a joint system: predict() already returned a density for every
+# modelled variable, and until now four of the six were computed and discarded.
+# Publishing them costs nothing beyond this loop — no extra fit, no extra draws —
+# and an inflation density forecast is the single most-wanted number on the site.
+#
+# These go to their OWN table rather than into forecast_policy_rate, which is the
+# documented "three readings of the policy rate" contract (CLAUDE.md): its
+# `source` column means reading-METHOD, and overloading it with quantity would
+# leave a table dense in one cell and empty in ten. The policy rate deliberately
+# appears in both; the two must agree exactly, which is a free cross-check.
+#
+# Units differ per variable (%, z-score, % of potential, % log change), so no unit
+# is stored here — the app resolves it from its label dictionary.
+macro_tbl <- purrr::imap_dfr(
+  stats::setNames(seq_along(model_vars), model_vars),
+  function(v_index, v_name) {
+    bvar_draws_long(pred$fcast, v_index, HORIZON) |>
+      bvar_bands(origin_date, QUANTILES) |>
+      dplyr::mutate(variable = v_name)
+  }) |>
+  dplyr::mutate(source = "bvar",
+                model_version = MODEL_VERSION, computed_at = now) |>
+  dplyr::select(origin_date, horizon, forecast_date, variable, source, quantile,
+                value, model_version, computed_at)
+
+db_ensure_table(con, "forecast_macro",
+                cols = c(origin_date = "DATE", horizon = "INTEGER",
+                         forecast_date = "DATE", variable = "TEXT",
+                         source = "TEXT", quantile = "DOUBLE PRECISION",
+                         value = "DOUBLE PRECISION", model_version = "TEXT",
+                         computed_at = "TIMESTAMPTZ"),
+                pk = c("origin_date", "horizon", "variable", "quantile"))
+db_upsert(con, "forecast_macro", macro_tbl,
+          conflict_cols = c("origin_date", "horizon", "variable", "quantile"))
