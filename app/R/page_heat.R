@@ -53,10 +53,8 @@ page_heat_ui <- function() {
                 data_to = vintage_of("heatindex_level"),
                 computed_at = computed_of("heat"),
                 note = paste0(
-                  "Framlögin leggjast saman í vísitöluna. Í fáeinum mánuðum ",
-                  "vegast mjög stór framlög á móti hvert öðru; ásinn er þá ",
-                  "klipptur svo myndin haldist læsileg og gildin sjást í ",
-                  "töflunni."))
+                  "Framlög málaflokkanna leggjast nákvæmlega saman í vísitöluna, ",
+                  "svo lesa má hvaðan hitastigið kemur hverju sinni."))
     ),
 
     htmltools::tags$div(
@@ -165,16 +163,6 @@ page_heat_server <- function(input, id = "heat") {
         tidyr::pivot_wider(names_from = "series", values_from = "value") |>
         dplyr::arrange(.data$date)
 
-      # A handful of months (13 of 332) carry very large offsetting group
-      # contributions — labour +118 against external -83 and housing -75 in
-      # 2018-09, for instance. They sum to the correct index, so the decompo-
-      # sition is arithmetically right, but on a shared axis they flatten every
-      # other month to nothing. Clip the axis to the bulk of the distribution
-      # so the chart stays readable; the spikes remain in the table twin, and
-      # the note says so rather than quietly hiding them.
-      lim <- stats::quantile(abs(df$value), 0.995, na.rm = TRUE)
-      lim <- max(ceiling(lim), 1)
-
       e <- echarts4r::e_charts_(wide, "date")
       for (cd in codes) {
         e <- echarts4r::e_bar_(
@@ -186,7 +174,7 @@ page_heat_server <- function(input, id = "heat") {
         echarts4r::e_x_axis_("date", type = "time",
                             axisLabel = list(hideOverlap = TRUE)) |>
         chart_drop_axis_data(x_type = "time") |>
-        echarts4r::e_y_axis(min = -lim, max = lim, axisLabel = list(
+        echarts4r::e_y_axis(axisLabel = list(
           formatter = htmlwidgets::JS("function(v){return APP.fmtAxis(v);}"))) |>
         echarts4r::e_legend(top = 0, left = 0) |>
         echarts4r::e_tooltip(trigger = "axis", formatter = htmlwidgets::JS(
