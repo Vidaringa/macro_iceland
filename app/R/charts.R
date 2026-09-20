@@ -20,7 +20,18 @@ chart_colours <- function(codes, emphasis = NULL) {
   if (!is.null(emphasis)) {
     return(ifelse(codes == emphasis, TOK$accent, TOK$deemph))
   }
-  if (length(codes) == 1 && !codes %in% LABELS$code) return(TOK$accent)
+  known <- codes %in% LABELS$code
+  # Entities the dictionary does not carry — individual bonds, for instance —
+  # still need stable, distinct colours. Fall back to the categorical slots in
+  # the order the codes appear, which is fixed for a given chart.
+  if (!all(known)) {
+    out <- character(length(codes))
+    out[known] <- unname(lbl_colour(codes[known]))
+    n_unknown <- sum(!known)
+    out[!known] <- TOK$slots[((seq_len(n_unknown) - 1L) %% length(TOK$slots)) + 1L]
+    if (length(codes) == 1) return(TOK$accent)
+    return(out)
+  }
   unname(lbl_colour(codes))
 }
 

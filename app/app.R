@@ -74,10 +74,10 @@ ui <- function(req) {
     disclaimer      = lbl("disclaimer"),
     vintages        = vint_txt,
     overview        = page_overview_ui(),
-    heat            = page_stub_ui("heat"),
-    policy          = page_stub_ui("policy"),
-    markets         = page_stub_ui("markets"),
-    about           = page_stub_ui("about")
+    heat            = page_heat_ui(),
+    policy          = page_policy_ui(),
+    markets         = page_markets_ui(),
+    about           = page_about_ui()
   )
 }
 
@@ -88,6 +88,12 @@ server <- function(input, output, session) {
   session$allowReconnect("force")
 
   page_overview_server()
+  page_heat_server(input)
+  page_heat_inputs_server(output)
+  page_policy_server()
+  page_policy_table_server(output)
+  page_markets_server()
+  page_markets_tables_server(output)
 
   # Hidden pages are suspended while they are hidden, which is what keeps the
   # first paint cheap. Once the visible page has flushed, un-suspend the rest so
