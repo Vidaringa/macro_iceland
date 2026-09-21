@@ -125,6 +125,37 @@ page_about_ui <- function() {
             "hans ráðast af gengishreyfingum. Spáin er því skilyrt því að ",
             "bankinn bregðist ekki við."))),
 
+      htmltools::tags$h2("Vaxtaferlar og verðbólguálag"),
+      htmltools::tags$p(
+        "Ferlar eru lagaðir að ávöxtunarkröfu ríkisbréfa með Nelson-Siegel ",
+        "aðferð: einn ferill úr óverðtryggðum RIKB-bréfum og annar úr ",
+        "verðtryggðum RIKS-bréfum. Munurinn á þeim er ",
+        htmltools::tags$b("verðbólguálagið", .noWS = "after"), " — sú ",
+        "verðbólga sem þarf að ganga eftir til að bréfin tvö skili sömu ávöxtun."),
+      htmltools::tags$details(
+        htmltools::tags$summary("Aðferð og fyrirvarar"),
+        htmltools::tags$ul(
+          htmltools::tags$li(
+            "Nelson-Siegel, ekki Svensson. Svensson hefur sex stika en aðeins ",
+            "sjö nothæf óverðtryggð bréf eru í boði; þá er nánast ekkert svigrúm ",
+            "eftir. Þriggja þátta ferill er það sem gögnin bera."),
+          htmltools::tags$li(
+            "Lögunarstikinn (lambda) er ", htmltools::tags$b("fastur", .noWS = "after"),
+            ", ekki endurmetinn daglega. Frjáls stiki lækkar frávik dagsins en ",
+            "lætur ferilinn sveiflast milli daga, og þá er ekki hægt að bera ",
+            "saman ferla frá degi til dags."),
+          htmltools::tags$li(
+            "Bréf með innan við þrjá mánuði til gjalddaga eru undanskilin. Þau ",
+            "hreyfast eftir eigin framboði en ekki eftir ferlinum."),
+          htmltools::tags$li(
+            "Ferlarnir eru aldrei birtir styttra en stysta bréfið sem þeir byggja ",
+            "á. Stysta verðtryggða bréfið er um þriggja ára, og neðan við eigin ",
+            "gögn ræðst lögun ferilsins af stikanum einum — að birta tölu ",
+            "þar væri að búa hana til."),
+          htmltools::tags$li(
+            "Frávik hvers bréfs frá eigin ferli er birt sem ",
+            "ódýrt/dýrt-mælikvarði. Það er lýsandi stærð, ekki ráðgjöf."))),
+
       htmltools::tags$h2("Markaðsgögn"),
       htmltools::tags$p(
         "Ávöxtunarkrafa ríkisbréfa er dagslokakrafa frá Nasdaq Iceland. Dagar ",

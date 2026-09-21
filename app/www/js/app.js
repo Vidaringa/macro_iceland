@@ -43,11 +43,21 @@
     return nf(digits === undefined ? 1 : digits).format(v);
   };
 
-  /* Axis ticks: clean numbers, no trailing zeros. ECharts picks the interval,
-     so the label only has to show as many decimals as that interval needs. */
+  /* Axis ticks: clean numbers, no trailing zeros, but ALWAYS enough decimals to
+     tell adjacent ticks apart. A breakeven curve spanning 4.08 to 4.21 gets
+     ticks 0.02 apart, and rounding those to one decimal prints "4,1" five times
+     — the axis stops carrying information. Derive the precision from the value
+     itself rather than assuming one decimal is enough. */
   APP.fmtAxis = function (v) {
     if (v === null || v === undefined || isNaN(v)) return "";
-    var d = Math.abs(v) < 1 && v !== 0 ? 2 : (Math.abs(v % 1) > 1e-9 ? 1 : 0);
+    var frac = Math.abs(v % 1);
+    var d = 0;
+    if (frac > 1e-9) {
+      // Smallest precision that represents this tick exactly, capped at 3.
+      for (d = 1; d < 3; d++) {
+        if (Math.abs(v - Number(v.toFixed(d))) < 1e-9) break;
+      }
+    }
     return nf(d).format(v);
   };
 

@@ -24,6 +24,7 @@ LABELS <- tibble::tribble(
   "heat",                   "page",    "Hitastig",                       "Heat index",                 "",    NA,    "hitastig",
   "policy",                 "page",    "Stýrivextir",                    "Policy rate",                "",    NA,    "styrivextir",
   "markets",                "page",    "Markaðir",                       "Markets",                    "",    NA,    "markadir",
+  "curves",                 "page",    "Vaxtaferlar",                    "Yield curves",               "",    NA,    "vaxtaferlar",
   "forecasts",              "page",    "Spár",                           "Forecasts",                  "",    NA,    "spar",
   "about",                  "page",    "Aðferðafræði",                   "Methodology",                "",    NA,    "adferdafraedi",
 
@@ -39,6 +40,11 @@ LABELS <- tibble::tribble(
   "bvar",                   "source",  "BVAR-dreifispá",                 "BVAR density",               "%",   1L,    NA,
   "market",                 "source",  "Markaðsvænting",                 "Market-implied",             "%",   2L,    NA,
   "reaction",               "source",  "Viðbragðsfall",                  "Reaction function",          "%",   3L,    NA,
+
+  # --- A3 curves (curve_points.curve) ----------------------------------------
+  "nominal",                "curve",   "Óverðtryggður ferill",           "Nominal curve",              "%",   1L,    NA,
+  "real",                   "curve",   "Verðtryggður ferill",            "Real curve",                 "%",   3L,    NA,
+  "breakeven",              "curve",   "Verðbólguálag",                  "Breakeven inflation",        "%",   2L,    NA,
 
   # --- BVAR model variables (forecast_macro.variable / forecast_fx.series) ---
   # Units differ per variable, which is why forecast_macro stores none: the

@@ -29,6 +29,7 @@ html[data-page="yfirlit"]       main > section[data-page="yfirlit"],
 html[data-page="hitastig"]      main > section[data-page="hitastig"],
 html[data-page="styrivextir"]   main > section[data-page="styrivextir"],
 html[data-page="markadir"]      main > section[data-page="markadir"],
+html[data-page="vaxtaferlar"]   main > section[data-page="vaxtaferlar"],
 html[data-page="spar"]          main > section[data-page="spar"],
 html[data-page="adferdafraedi"] main > section[data-page="adferdafraedi"] { display: block; }
 

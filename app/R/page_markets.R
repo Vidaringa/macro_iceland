@@ -26,8 +26,10 @@ page_markets_ui <- function() {
       htmltools::tags$p(
         class = "lede",
         "Ávöxtunarkrafa ríkisbréfa, millibankavextir, ríkisvíxlar og gengi. ",
-        "Allar tölur eru mældar markaðsstærðir — engin ferilaðlögun liggur ",
-        "að baki.")
+        "Allar tölur hér eru mældar markaðsstærðir: hver punktur er eitt bréf. ",
+        "Lagaða ferla og verðbólguálag má sjá á ",
+        htmltools::tags$a(href = "#/vaxtaferlar", "Vaxtaferlar"),
+        "-síðunni.")
     ),
 
     htmltools::tags$div(

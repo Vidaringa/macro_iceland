@@ -8,4 +8,4 @@
 SITE_NAME       <- "Hagsjá"   # masthead wordmark — placeholder, see plan
 APP_LANG        <- "is"       # "is" | "en"; every string lives in labels.R
 REFRESH_SECONDS <- 300        # data poll; models land ~17:30 daily
-ASSET_VERSION   <- "5"        # bump to bust the CSS/JS/font cache
+ASSET_VERSION   <- "8"        # bump to bust the CSS/JS/font cache

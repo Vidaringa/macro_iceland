@@ -81,6 +81,22 @@ Forecast tables in use:
   `forecast_policy_rate` on purpose — they must agree exactly (a free cross-check).
 - `forecast_fx (origin_date, horizon, series, quantile)` + `bvar_fx_draws` — A6. `series`,
   not `variable`, because the target is a canonical `fx_daily.series` code.
+- `curve_params (date, curve, parameter)`, `curve_points (date, curve, maturity)`,
+  `curve_residuals (date, orderbookid)` — A3. `curve` ∈ nominal | real | **breakeven**
+  (nominal − real, the headline output). `curve_points` is never written below a curve's
+  own shortest bond: the real curve starts ~3y and its fitted 1y swings 0.9%→4.6% on
+  lambda alone, so a point there would be invented. `curve_residuals` is the rich/cheap
+  signal A5 will consume.
+
+## A3 curve conventions (fixed-once — do not re-tune casually)
+
+Nelson-Siegel, NOT Svensson: 6 parameters against 7 usable nominal bonds leaves 1 df.
+**Lambda is FIXED** (`nominal = 2.0`, `real = 3.0`) — a per-day grid search lowers that
+day's RSS but makes the shape wander (free lambda sd 1.4/2.5), which destroys day-to-day
+comparability. Bonds inside `MIN_TAU = 0.25y` are excluded (a near-redemption stub took
+nominal RMSE from 2.2bp to 21.6bp while moving 5y/10y under 2bp). T-bills are NOT a
+short-end anchor despite SPEC A3 proposing it: `tbill_auctions` holds auction prints on
+auction dates, not daily marks.
 
 ## BVAR modules: shared helpers, and a package trap
 

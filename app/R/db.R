@@ -153,6 +153,33 @@ READERS <- list(
       tibble::as_tibble()
   },
 
+  # --- A3 curves -------------------------------------------------------------
+  # The fitted grid for every day, all three curves. Small enough to hold whole
+  # (three curves x ~13 maturities x trading days), and the history is what makes
+  # the breakeven chart possible.
+  curve_points = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT date, curve, maturity, yield, model_version, computed_at
+      FROM curve_points ORDER BY date, curve, maturity") |> tibble::as_tibble()
+  },
+
+  # Per-bond deviation from its own curve: positive = yields more than the curve
+  # says = cheap. The rich/cheap read.
+  curve_residuals = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT date, curve, orderbookid, bond_code, tau, yield, fitted, residual
+      FROM curve_residuals
+      WHERE date = (SELECT max(date) FROM curve_residuals)
+      ORDER BY curve, tau") |> tibble::as_tibble()
+  },
+
+  curve_params = function(con) {
+    DBI::dbGetQuery(con, "
+      SELECT date, curve, parameter, value
+      FROM curve_params
+      WHERE date = (SELECT max(date) FROM curve_params)") |> tibble::as_tibble()
+  },
+
   # --- bonds -----------------------------------------------------------------
   # The scrape runs seven days a week and re-stores the last close on days the
   # market was shut, so the table holds weekend rows AND holiday copies
@@ -243,6 +270,7 @@ READERS <- list(
       UNION ALL SELECT 'forecast_macro', max(origin_date) FROM forecast_macro
       UNION ALL SELECT 'forecast_fx', max(origin_date) FROM forecast_fx
       UNION ALL SELECT 'current_account', max(date) FROM current_account
+      UNION ALL SELECT 'curve_points', max(date) FROM curve_points
       UNION ALL SELECT 'bonds_daily', max(date) FROM bonds_daily
                 WHERE EXTRACT(ISODOW FROM date) <= 5") |> tibble::as_tibble()
   },
@@ -255,7 +283,9 @@ READERS <- list(
       SELECT source, model_version, max(computed_at)
       FROM forecast_policy_rate GROUP BY 1, 2
       UNION ALL
-      SELECT 'isk', model_version, max(computed_at) FROM forecast_fx GROUP BY 1, 2")  |>
+      SELECT 'isk', model_version, max(computed_at) FROM forecast_fx GROUP BY 1, 2
+      UNION ALL
+      SELECT 'curve', model_version, max(computed_at) FROM curve_points GROUP BY 1, 2") |>
       tibble::as_tibble()
   }
 )
