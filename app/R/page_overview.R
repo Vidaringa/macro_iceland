@@ -83,7 +83,7 @@ page_overview_ui <- function() {
                 data_to = vintage_of("heatindex_level"),
                 computed_at = computed_of("heat")),
       figure_ui("ov_policy", "Stýrivextir og spáð þróun",
-                "Prósent — söguleg þróun og 18 mánaða dreifispá",
+                "Prósent — söguleg þróun og 18 mánaða spá",
                 source = "Seðlabanki Íslands, eigin útreikningur",
                 data_to = vintage_of("rates_policy"),
                 computed_at = computed_of("bvar"))
@@ -92,10 +92,11 @@ page_overview_ui <- function() {
     htmltools::tags$div(
       style = "margin-top:20px",
       figure_ui("ov_infl", "Verðbólga og spáð þróun",
-                "Prósent — ársbreyting vísitölu neysluverðs og 18 mánaða dreifispá",
+                "Prósent — ársbreyting vísitölu neysluverðs og 18 mánaða spá",
                 source = "Hagstofa Íslands, eigin útreikningur",
                 data_to = vintage_of("cpi"),
-                computed_at = computed_of("bvar"))
+                computed_at = computed_of("bvar"),
+                class = "fig--flat")
     ),
 
     htmltools::tags$div(

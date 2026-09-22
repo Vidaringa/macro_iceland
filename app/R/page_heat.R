@@ -43,7 +43,7 @@ page_heat_ui <- function() {
               data_to = vintage_of("heatindex_level"),
               computed_at = computed_of("heat"),
               note = prov_note,
-              class = "fig--tall"),
+              class = "fig--flat"),
 
     htmltools::tags$div(
       style = "margin-top:20px",

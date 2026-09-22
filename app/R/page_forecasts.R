@@ -1,4 +1,4 @@
-# Spár — the BVAR density forecasts ----
+# Spár — the density forecasts ----
 #
 # One fan per modelled variable, from the same joint fit that produces the
 # policy-rate path. These are densities, not point forecasts: the band is the
@@ -45,7 +45,7 @@ forecast_frame <- function(hist, variable, years = 5) {
 }
 
 # The fan itself: history in ink, two sequential washes of the accent, median on
-# top. Shared by every variable on this page and by the ISK fan on Markaðir.
+# top. Shared by every variable on this page.
 forecast_chart <- function(df, unit = "%", digits = 2, label = NULL) {
   d <- dplyr::arrange(df, .data$date)
 
@@ -55,7 +55,7 @@ forecast_chart <- function(df, unit = "%", digits = 2, label = NULL) {
   # The stacked form (lower bound + width) is the usual ECharts idiom but it is
   # wrong for any series that crosses zero: ECharts accumulates positive and
   # negative values into SEPARATE stacks, so a negative lower bound throws the
-  # band to one side of the line. That is how the heat and output-gap fans first
+  # band to one side of the line. That is how the heat fan first
   # rendered. `areaStyle$origin = "start"` fills from the axis start instead, so
   # painting upper-then-lower in the surface colour leaves exactly the interval
   # visible and works for any sign.
@@ -127,9 +127,11 @@ forecast_table <- function(variable, digits = 2) {
   )
 }
 
-# The four published variables, in reading order. Inflation leads: it is the
-# number that most directly stands in for the bank and central-bank forecasts.
-FORECAST_VARS <- c("infl", "policy_rate", "heat", "gap")
+# The published variables, in reading order. Inflation leads: it is the number
+# that most directly stands in for the bank and central-bank forecasts. The
+# output gap left the variable set at model_version A2-v2, so it has no rows in
+# forecast_macro and is not published here.
+FORECAST_VARS <- c("infl", "policy_rate", "heat")
 
 page_forecasts_ui <- function() {
   htmltools::tagList(
@@ -138,10 +140,10 @@ page_forecasts_ui <- function() {
       htmltools::tags$h1(lbl("forecasts")),
       htmltools::tags$p(
         class = "lede",
-        "Dreifispár úr BVAR-líkani: verðbólga, stýrivextir, hitastig hagkerfisins ",
-        "og framleiðsluspenna, 18 mánuði fram. Spárnar koma allar úr sama ",
-        "líkani og eru því innbyrðis samkvæmar. Bilið er niðurstaðan — ",
-        "miðgildið er samantekt á því, ekki fullyrðing um hvað gerist.")
+        "Dreifispár: verðbólga, stýrivextir og hitastig hagkerfisins, 18 ",
+        "mánuði fram. Spárnar koma allar úr sama líkani og eru því innbyrðis ",
+        "samkvæmar. Bilið er niðurstaðan — miðgildið er samantekt á því, ekki ",
+        "fullyrðing um hvað gerist.")
     ),
 
     htmltools::tags$div(
@@ -159,8 +161,7 @@ page_forecasts_ui <- function() {
     htmltools::tags$div(
       class = "fig__note", style = "margin-top:20px; max-width:68ch",
       "Líkanið er metið á mánaðarlegum gögnum frá 2009. Það er þrálátt í eðli ",
-      "sínu og tekur ekki mið af boðuðum ákvörðunum — sjá nánar á ",
-      "aðferðafræðisíðunni.")
+      "sínu og tekur ekki mið af boðuðum ákvörðunum.")
   )
 }
 
@@ -170,8 +171,7 @@ page_forecasts_server <- function(id = "forecasts") {
       infl = dplyr::filter(dat("cpi"), .data$series == "CPI_change_A") |>
         dplyr::select("date", "value"),
       policy_rate = dat("policy"),
-      heat = dat("heat_level") |> dplyr::transmute(date = .data$date, value = .data$index),
-      gap = dat("output_gap"))
+      heat = dat("heat_level") |> dplyr::transmute(date = .data$date, value = .data$index))
   }
 
   for (v in FORECAST_VARS) {

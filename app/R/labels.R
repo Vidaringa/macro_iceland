@@ -23,10 +23,9 @@ LABELS <- tibble::tribble(
   "overview",               "page",    "Yfirlit",                        "Overview",                   "",    NA,    "yfirlit",
   "heat",                   "page",    "Hitastig",                       "Heat index",                 "",    NA,    "hitastig",
   "policy",                 "page",    "Stýrivextir",                    "Policy rate",                "",    NA,    "styrivextir",
-  "markets",                "page",    "Markaðir",                       "Markets",                    "",    NA,    "markadir",
-  "curves",                 "page",    "Vaxtaferlar",                    "Yield curves",               "",    NA,    "vaxtaferlar",
+  "bonds",                  "page",    "Skuldabréf",                     "Bonds",                      "",    NA,    "skuldabref",
+  "fx",                     "page",    "Gengi",                          "Exchange rate",              "",    NA,    "gengi",
   "forecasts",              "page",    "Spár",                           "Forecasts",                  "",    NA,    "spar",
-  "about",                  "page",    "Aðferðafræði",                   "Methodology",                "",    NA,    "adferdafraedi",
 
   # --- heat-index groups (fixed order = fixed colours in the stack) ----------
   "consumption",            "group",   "Einkaneysla",                    "Consumption",                "",    1L,    NA,
@@ -37,7 +36,7 @@ LABELS <- tibble::tribble(
   "financial",              "group",   "Fjármálaleg skilyrði",           "Financial conditions",       "",    6L,    NA,
 
   # --- forecast readings (a third source appears here when A2 gains it) ------
-  "bvar",                   "source",  "BVAR-dreifispá",                 "BVAR density",               "%",   1L,    NA,
+  "bvar",                   "source",  "Líkanspá",                       "Model forecast",             "%",   1L,    NA,
   "market",                 "source",  "Markaðsvænting",                 "Market-implied",             "%",   2L,    NA,
   "reaction",               "source",  "Viðbragðsfall",                  "Reaction function",          "%",   3L,    NA,
 
@@ -46,16 +45,22 @@ LABELS <- tibble::tribble(
   "real",                   "curve",   "Verðtryggður ferill",            "Real curve",                 "%",   3L,    NA,
   "breakeven",              "curve",   "Verðbólguálag",                  "Breakeven inflation",        "%",   2L,    NA,
 
-  # --- BVAR model variables (forecast_macro.variable / forecast_fx.series) ---
+  # --- model variables (forecast_macro.variable / forecast_fx.series) -------
   # Units differ per variable, which is why forecast_macro stores none: the
   # dictionary is the single place that knows a heat factor is a z-score and an
   # output gap is a percentage of potential.
   "infl",                   "variable", "Verðbólga",                     "Inflation",                  "%",   1L,    NA,
   "heat",                   "variable", "Hitastig hagkerfisins",         "Heat index",                 "",    1L,    NA,
+  # gap and d_ltwi left the A2 variable set at model_version A2-v2, but older
+  # forecast_macro vintages still carry them, so their labels stay.
   "gap",                    "variable", "Framleiðsluspenna",             "Output gap",                 "%",   1L,    NA,
   "d_ltwi",                 "variable", "Gengisbreyting",                "ISK monthly change",         "%",   1L,    NA,
   "policy_rate",            "variable", "Stýrivextir",                   "Policy rate",                "%",   1L,    NA,
   "ecb",                    "variable", "Innlánsvextir ECB",             "ECB deposit rate",           "%",   1L,    NA,
+  # A2-v2: the money-market spreads over the policy rate — what the market
+  # expects the Bank to do, which is why they carry the accuracy gain.
+  "sp_r6",                  "variable", "REIBOR 6M álag",                "REIBOR 6M spread",           "%",   2L,    NA,
+  "sp_r3",                  "variable", "REIBOR 3M álag",                "REIBOR 3M spread",           "%",   2L,    NA,
 
   # --- REIBOR tenors ---------------------------------------------------------
   "O/N",                    "tenor",   "O/N",                            "O/N",                        "%",   1L,    NA,

@@ -23,7 +23,7 @@ page_policy_ui <- function() {
       htmltools::tags$p(
         class = "lede",
         "Meginvextir Seðlabanka Íslands, vaxtagangur bankans og tvær spár um ",
-        "framhaldið: dreifispá úr BVAR-líkani og markaðsvænting lesin úr ",
+        "framhaldið: dreifispá úr líkani og markaðsvænting lesin úr ",
         "REIBOR-ferlinum.")
     ),
 
@@ -33,11 +33,11 @@ page_policy_ui <- function() {
               data_to = vintage_of("rates_policy"),
               computed_at = computed_of("bvar"),
               note = paste0(
-                "BVAR-spáin er dreifispá: hún lýsir líkindadreifingu vaxta, ekki ",
+                "Líkanspáin er dreifispá: hún lýsir líkindadreifingu vaxta, ekki ",
                 "einu gildi. Hún byggir á viðvarandi þróun og tekur því ekki mið ",
                 "af boðuðum vaxtaákvörðunum. Markaðsvæntingin nær aðeins sex ",
                 "mánuði fram — lengra nær REIBOR-ferillinn ekki."),
-              class = "fig--tall"),
+              class = "fig--flat-tall"),
 
     htmltools::tags$div(
       class = "tbl-card", style = "margin-top:20px",

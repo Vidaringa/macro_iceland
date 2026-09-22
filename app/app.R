@@ -76,10 +76,9 @@ ui <- function(req) {
     overview        = page_overview_ui(),
     heat            = page_heat_ui(),
     policy          = page_policy_ui(),
-    markets         = page_markets_ui(),
-    curves          = page_curves_ui(),
-    forecasts       = page_forecasts_ui(),
-    about           = page_about_ui()
+    bonds           = page_bonds_ui(),
+    fx              = page_fx_ui(),
+    forecasts       = page_forecasts_ui()
   )
 }
 
@@ -94,10 +93,9 @@ server <- function(input, output, session) {
   page_heat_inputs_server(output)
   page_policy_server()
   page_policy_table_server(output)
-  page_markets_server()
-  page_markets_tables_server(output)
-  page_curves_server()
-  page_curves_table_server(output)
+  page_bonds_server()
+  page_bonds_tables_server(output)
+  page_fx_server()
   page_forecasts_server()
 
   # Hidden pages are suspended while they are hidden, which is what keeps the

@@ -1,6 +1,6 @@
 # The policy-rate path figure — shared by Yfirlit and Stýrivextir ----
 #
-# History as a step line, the BVAR density as two sequential washes of one hue,
+# History as a step line, the model density as two sequential washes of one hue,
 # and the market-implied path as its own series. Built here rather than in a
 # page file because both pages draw it and the assembly is where the subtle
 # rules live: each source has its OWN origin, and the fan is anchored at h = 0
@@ -22,7 +22,7 @@ policy_path_frame <- function(years = 5) {
                                       q50 = NA_real_, q84 = NA_real_,
                                       q95 = NA_real_, market = NA_real_))
 
-  # BVAR: wide by quantile, anchored at its origin month.
+  # Model density: wide by quantile, anchored at its origin month.
   bv <- fc |> dplyr::filter(.data$source == "bvar")
   bvw <- if (nrow(bv)) {
     w <- bv |>
@@ -156,7 +156,7 @@ policy_path_table <- function(df) {
 
   tibble::tibble(
     `Sjóndeild` = paste0(out$horizon, " mán."),
-    `BVAR miðgildi` = round(med, 2),
+    `Miðgildi` = round(med, 2),
     `90% bil` = ifelse(is.na(lo), "—",
                        paste0(formatC(lo, format = "f", digits = 2, decimal.mark = ","),
                               "–",

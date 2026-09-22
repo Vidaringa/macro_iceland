@@ -28,10 +28,9 @@ main > section[data-page] { display: none; }
 html[data-page="yfirlit"]       main > section[data-page="yfirlit"],
 html[data-page="hitastig"]      main > section[data-page="hitastig"],
 html[data-page="styrivextir"]   main > section[data-page="styrivextir"],
-html[data-page="markadir"]      main > section[data-page="markadir"],
-html[data-page="vaxtaferlar"]   main > section[data-page="vaxtaferlar"],
-html[data-page="spar"]          main > section[data-page="spar"],
-html[data-page="adferdafraedi"] main > section[data-page="adferdafraedi"] { display: block; }
+html[data-page="skuldabref"]    main > section[data-page="skuldabref"],
+html[data-page="gengi"]         main > section[data-page="gengi"],
+html[data-page="spar"]          main > section[data-page="spar"] { display: block; }
 
 /* --- type ---------------------------------------------------------------- */
 body {
@@ -144,6 +143,9 @@ main { padding: 28px 0 56px; }
 .fig__plot { width: 100%; aspect-ratio: 16 / 9; }
 .fig--tall .fig__plot { aspect-ratio: 4 / 3; }
 .fig--short .fig__plot { aspect-ratio: 21 / 9; }
+.fig--flat .fig__plot { aspect-ratio: 32 / 9; }
+/* Half the height of the 4:3 box, for charts that were over-tall. */
+.fig--flat-tall .fig__plot { aspect-ratio: 8 / 3; }
 .fig__note {
   font-size: 0.8125rem; color: var(--ink2);
   margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--grid);

@@ -1,15 +1,21 @@
-# Vaxtaferlar — the fitted term structures and breakeven inflation ----
+# Skuldabréf — the government bond market, fitted curves and breakeven ----
 #
-# The breakeven leads the page. It is the one number here that nobody else in
-# Iceland publishes as a term structure, and it is what the two fitted curves
-# exist to produce: the gap between a nominal yield and a real yield IS the
-# inflation the market is pricing over that horizon.
+# One page for one subject. The measured/modelled split that used to separate
+# "Markaðir" from "Vaxtaferlar" was a distinction of METHOD, not of subject, and
+# it put the same bonds on two pages: a raw yield-by-maturity scatter on one and
+# the same scatter with a fitted line through it on the other. The fitted panels
+# draw their own bonds underneath, so they supersede the raw ones.
+#
+# The breakeven leads. It is the one number here that nobody else in Iceland
+# publishes as a term structure, and it is what the two fitted curves exist to
+# produce: the gap between a nominal yield and a real yield IS the inflation the
+# market is pricing over that horizon.
 #
 # The nominal and real curves keep separate panels with their own scales. A real
 # yield is not comparable to a nominal one — the difference between them is the
 # subject of the page, not something to invite by eye off a shared axis.
 
-page_curves_ui <- function() {
+page_bonds_ui <- function() {
   pts <- dat("curve_points")
   res <- dat("curve_residuals")
 
@@ -32,13 +38,12 @@ page_curves_ui <- function() {
   htmltools::tagList(
     htmltools::tags$div(
       class = "page__head",
-      htmltools::tags$h1(lbl("curves")),
+      htmltools::tags$h1(lbl("bonds")),
       htmltools::tags$p(
         class = "lede",
-        "Ferlar lagaðir að ávöxtunarkröfu ríkisbréfa með Nelson-Siegel aðferð: ",
-        "óverðtryggður ferill úr RIKB-bréfum, verðtryggður úr RIKS-bréfum, og ",
-        "munurinn á þeim — verðbólguálagið — sem er sú verðbólga sem ",
-        "markaðurinn verðleggur.")
+        "Ríkisbréfamarkaðurinn: ávöxtunarkrafa bréfa í umferð, ferlar lagaðir ",
+        "að þeim, verðbólguálagið sem munurinn á óverðtryggðum og verðtryggðum ",
+        "ferli — sú verðbólga sem markaðurinn verðleggur — og útboð ríkisvíxla.")
     ),
 
     htmltools::tags$div(
@@ -61,7 +66,7 @@ page_curves_ui <- function() {
                   "Álagið er birt eingöngu á þeim líftímum þar sem BÁÐIR ",
                   "ferlarnir byggja á raunverulegum bréfum. Stysta verðtryggða ",
                   "bréfið er um þriggja ára, svo styttra álag er ekki reiknað."),
-                class = "fig--tall")
+                class = "fig--flat")
     ),
 
     htmltools::tags$div(
@@ -79,12 +84,16 @@ page_curves_ui <- function() {
     ),
 
     htmltools::tags$div(
-      style = "margin-top:20px",
+      class = "grid grid--2", style = "margin-top:20px",
       figure_ui("cv_be_hist", "Þróun verðbólguálags",
                 "Prósent — 5 og 10 ára álag yfir tíma",
                 source = "Eigin útreikningur",
                 data_to = vintage_of("curve_points"),
-                computed_at = computed_of("curve"))
+                computed_at = computed_of("curve")),
+      figure_ui("mk_bench", "Ávöxtunarkrafa valinna ríkisbréfa",
+                "Prósent — þróun yfir tíma",
+                source = "Nasdaq Iceland",
+                data_to = vintage_of("bonds_daily"))
     ),
 
     htmltools::tags$div(
@@ -95,11 +104,23 @@ page_curves_ui <- function() {
                                "segir til um — bréfið er ódýrt miðað við ",
                                "ferilinn. Punktar, ekki prósentustig.")),
       reactable::reactableOutput("cv_resid_tbl")
+    ),
+
+    htmltools::tags$div(
+      class = "tbl-card", style = "margin-top:20px",
+      htmltools::tags$h3("Ríkisbréf í umferð"),
+      reactable::reactableOutput("mk_bonds_tbl")
+    ),
+
+    htmltools::tags$div(
+      class = "tbl-card", style = "margin-top:20px",
+      htmltools::tags$h3("Útboð ríkisvíxla"),
+      reactable::reactableOutput("mk_tbills_tbl")
     )
   )
 }
 
-page_curves_server <- function(id = "curves") {
+page_bonds_server <- function(id = "bonds") {
 
   latest <- function() {
     p <- dat("curve_points")
@@ -154,6 +175,23 @@ page_curves_server <- function(id = "curves") {
       (\(x) { x$x$theme <- "editorial"; x$x$mainOpts$locale <- "IS"; x })() |>
       chart_fix_values()
   }
+
+  # Three benchmark nominal bonds over time — at three series, direct labels
+  # still separate cleanly at the right edge.
+  figure_server(
+    "mk_bench",
+    data = shiny::reactive({
+      d <- dat("bonds")
+      if (!nrow(d)) return(d)
+      d |>
+        dplyr::filter(.data$bond_code %in% BONDS_BENCH) |>
+        dplyr::select(date = "date", series = "bond_code", value = "yield")
+    }),
+    build = function(df) {
+      chart_line(df, y = "value", series = "series", unit = "%", digits = 2,
+                 freq = "day", end_labels = TRUE)
+    }
+  )
 
   figure_server(
     "cv_breakeven",
@@ -211,9 +249,13 @@ page_curves_server <- function(id = "curves") {
   )
 }
 
-# The residual table renders through its own output (a primary object, not a
-# chart's twin).
-page_curves_table_server <- function(output) {
+# Three benchmark nominal bonds over time — at three series, direct labels
+# still separate cleanly at the right edge.
+BONDS_BENCH <- c("RIKB 28 1115", "RIKB 31 0124", "RIKB 35 0917")
+
+# The tables render through their own outputs (primary objects, not a chart's
+# twin): the rich/cheap residuals, the bonds outstanding, and the bill auctions.
+page_bonds_tables_server <- function(output) {
   output$cv_resid_tbl <- reactable::renderReactable({
     d <- dat("curve_residuals")
     shiny::validate(shiny::need(nrow(d) > 0, lbl("no_data")))
@@ -226,6 +268,52 @@ page_curves_table_server <- function(output) {
         `Ferill segir %` = round(.data$fitted, 2),
         `Frávik (punktar)` = round(.data$residual * 100, 1)) |>
       dplyr::arrange(dplyr::desc(.data$`Frávik (punktar)`))
+    reactable::reactable(
+      tb, compact = TRUE, striped = TRUE, highlight = TRUE,
+      defaultPageSize = 13, showPageSizeOptions = FALSE,
+      defaultColDef = reactable::colDef(
+        format = reactable::colFormat(locales = "is-IS"), minWidth = 90, na = "—"))
+  })
+
+  output$mk_bonds_tbl <- reactable::renderReactable({
+    attrs <- dat("bond_attrs"); bonds <- dat("bonds")
+    shiny::validate(shiny::need(nrow(attrs) > 0, lbl("no_data")))
+    latest <- if (nrow(bonds)) {
+      bonds |>
+        dplyr::filter(.data$date == max(.data$date)) |>
+        dplyr::select("orderbookid", "yield", "price")
+    } else tibble::tibble(orderbookid = character())
+
+    tb <- attrs |>
+      dplyr::left_join(latest, by = "orderbookid") |>
+      dplyr::transmute(
+        `Bréf` = .data$bond_code,
+        `Tegund` = ifelse(dplyr::coalesce(.data$indexed, FALSE),
+                          "Verðtryggt", "Óverðtryggt"),
+        `Gjalddagi` = format(.data$maturity, "%d.%m.%Y"),
+        `Nafnvextir %` = round(.data$coupon, 2),
+        `Krafa %` = round(.data$yield, 2),
+        `Verð` = round(.data$price, 2),
+        ISIN = .data$isin) |>
+      dplyr::arrange(.data$`Tegund`, .data$`Gjalddagi`)
+
+    reactable::reactable(
+      tb, compact = TRUE, striped = TRUE, highlight = TRUE,
+      defaultPageSize = 13, showPageSizeOptions = FALSE,
+      defaultColDef = reactable::colDef(
+        format = reactable::colFormat(locales = "is-IS"), minWidth = 90, na = "—"))
+  })
+
+  output$mk_tbills_tbl <- reactable::renderReactable({
+    d <- dat("tbills")
+    shiny::validate(shiny::need(nrow(d) > 0, lbl("no_data")))
+    tb <- d |>
+      dplyr::transmute(
+        `Útboð` = format(.data$date, "%d.%m.%Y"),
+        `Flokkur` = .data$series,
+        `Krafa %` = round(.data$yield, 3),
+        `Þekja` = round(.data$bid_to_cover, 2),
+        `Samþykkt (m.kr.)` = round(.data$accepted_mkr, 0))
     reactable::reactable(
       tb, compact = TRUE, striped = TRUE, highlight = TRUE,
       defaultPageSize = 13, showPageSizeOptions = FALSE,
