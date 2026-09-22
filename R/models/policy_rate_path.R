@@ -5,11 +5,12 @@
 # market-implied reading (policy_rate_market.R) is the responsive near-term path;
 # this BVAR is the model-based density + persisted posterior draws (the scenario-
 # engine foundation). The reaction-function (ordered-probit) reading is still to
-# come. Note the BVAR is persistence-dominated (a level VAR on a ~0.93-AR policy
-# rate): it gives the conditional density and longer-horizon view, but does NOT
-# anticipate announced policy turns — that is the market reading's job, and both
-# are written to forecast_policy_rate (distinguished by `source`) for the app to
-# show side by side.
+# come. The v1 note that this BVAR "does NOT anticipate announced policy turns"
+# no longer holds unqualified: since v2 carries the REIBOR spreads (see below) it
+# inherits part of the market's turn-pricing, which is most of where its accuracy
+# gain comes from. It is still a level VAR on a ~0.93-AR rate and still slower
+# than the market reading, so both remain written to forecast_policy_rate
+# (distinguished by `source`) for the app to show side by side.
 #
 # Sourced by run_models.R (provides `con`; tidyverse + BVAR attached; DB helpers
 # sourced). Runs after A1 (heat_index.R) — it reads the heat-index factor as an
@@ -18,17 +19,41 @@
 #   forecast_policy_rate  (origin_date, horizon, quantile)  — central path + bands
 #   bvar_policy_draws     (origin_date, horizon, draw)       — full policy-rate draws
 #   forecast_macro        (origin_date, horizon, variable, quantile) — the SAME
-#     fit's density for every modelled variable (inflation, heat, gap, ECB, FX),
-#     not just the policy rate. The VAR is a joint system, so these come free.
+#     fit's density for every modelled variable (inflation, heat, the two REIBOR
+#     spreads, ECB), not just the policy rate. The VAR is a joint system, so
+#     these come free. NOTE the v2 variable set changed which rows appear here:
+#     `gap` and `d_ltwi` are gone, `sp_r6`/`sp_r3` are new. See labels.R.
 #
-# Compact-core variable set (estimable on the short ISK sample): policy rate,
-# CPI YoY inflation, A1 heat-index factor, ISK trade-weighted index (monthly log
-# change), output gap, ECB deposit rate (external anchor). Monthly frequency;
-# daily series taken at MONTH-END. Output gap is quarterly -> linearly interpolated
-# to monthly (a slow-moving estimate) and carried forward at the ragged edge so the
-# forecast origin uses the freshest policy/inflation/FX month.
+# Variable set (v2): policy rate, CPI YoY inflation, A1 heat-index factor, the
+# REIBOR 6M and 3M spreads over the policy rate, and the ECB deposit rate
+# (external anchor). Monthly frequency; daily series taken at MONTH-END.
+#
+# WHY THE MONEY-MARKET SPREADS (the v1 -> v2 change). v1 used the output gap and
+# the ISK log change in place of the two REIBOR spreads. Racing twelve
+# specifications on 60 rolling origins (R/models/checks/policy_rate_spec_race.R)
+# put this set ahead of v1's by 13% / 31% / 33% / 21% RMSE at h = 1/3/6/12, and
+# the win is broad rather than one episode: it beats v1 at 66-75% of individual
+# origins and in five of six origin years. REIBOR was already in the repo as the
+# separate point path in policy_rate_market.R, which exists precisely because it
+# "prices turns the BVAR cannot anticipate" — putting the spreads INSIDE the
+# system is what lets the density inherit that signal instead of leaving it in a
+# parallel series. Entered as SPREADS over the policy rate, not levels, so the
+# variable carries the expected change rather than restating the current level.
+#
+# The output gap was dropped with little loss: quarterly, interpolated to monthly
+# and carried forward, it adds ~0.001 R-squared to the 6-month policy-rate change
+# (see section 6 of the race script) while consuming a column of a k=6 system.
+#
+# NOTE ON WHAT DID *NOT* WORK. A better inflation forecast does not help here.
+# ARIMA beats this BVAR on inflation by ~31% (inflation_forecast_race.R), but
+# conditioning the system on that path moves the policy-rate RMSE by under 1%
+# and hurts at 12m, on both v1 and v2. Predicting the 6-month policy-rate CHANGE,
+# `heat` adds +0.22 R-squared and the ECB differential +0.18, while `infl` adds
+# -0.03: the forecastable part of the policy rate is the stance and the
+# money-market curve, not the inflation print. Do not re-litigate this without
+# re-running the race.
 
-MODEL_VERSION <- "A2-v1"
+MODEL_VERSION <- "A2-v2"
 BVAR_LAGS     <- 2L
 N_DRAW        <- 6000L
 N_BURN        <- 2000L
@@ -38,12 +63,11 @@ SAMPLE_START  <- as.Date("2009-01-01")             # post-redenomination policy 
 
 # 1.0.0 PULL ----
 # Each daily series taken at month-end (the value prevailing at month close). CPI
-# YoY and the heat factor are already monthly. Output gap is quarterly.
+# YoY and the heat factor are already monthly.
 # month_end_series / monthly_series live in R/models/helpers_bvar.R — the same
 # reductions are needed by the FX module, so they are shared rather than repeated.
 policy <- month_end_series(con, "rates_policy", series = NULL,
                            out_col = "policy_rate", value_col = "policy_rate")
-twi    <- month_end_series(con, "fx_daily", "TWI", "twi")
 ecb    <- month_end_series(con, "rates_external", "ECB_DEPO", "ecb")
 
 infl <- monthly_series(con, "cpi", "CPI_change_A", "infl")
@@ -52,32 +76,42 @@ heat <- dplyr::tbl(con, "heatindex_level") |>
   dplyr::select(date, index) |>
   dplyr::collect() |>
   dplyr::transmute(date, heat = index)
-gap_q <- dplyr::tbl(con, "output_gap") |>
-  dplyr::select(date, value) |>
+
+# The money-market curve at month end, one column per tenor. The same month-end
+# reduction policy_rate_market.R applies to the same table — that module reads
+# the curve to invert a point path; here the spreads enter the system directly.
+reibor <- dplyr::tbl(con, "rates_reibor") |>
+  dplyr::filter(tenor %in% c("3M", "6M")) |>
+  dplyr::select(date, tenor, reibor) |>
   dplyr::collect() |>
-  dplyr::transmute(date = lubridate::floor_date(date, "month"), gap = value)
+  dplyr::mutate(m = lubridate::floor_date(date, "month")) |>
+  dplyr::group_by(m, tenor) |>
+  dplyr::slice_max(date, n = 1, with_ties = FALSE) |>
+  dplyr::ungroup() |>
+  dplyr::transmute(date = m, tenor, reibor) |>
+  tidyr::pivot_wider(names_from = tenor, values_from = reibor,
+                     names_prefix = "reibor")
 
 # 2.0.0 ASSEMBLE + TRANSFORM ----
-# Common monthly spine from SAMPLE_START to the latest policy month. Output gap
-# interpolated to monthly then carried forward past its last quarter (ragged edge).
-# ISK TWI enters as the monthly % log change. Rates and inflation enter in levels
-# (%), the heat factor as its z-scale. Forecast origin = latest month with policy
-# rate, inflation, heat and FX observed (gap carried forward).
+# Common monthly spine from SAMPLE_START to the latest policy month. Rates and
+# inflation enter in levels (%), the heat factor as its z-scale, and the REIBOR
+# tenors as SPREADS over the policy rate (see the header). Every input is now
+# monthly or daily, so nothing is interpolated and the forecast origin is simply
+# the latest month with all six observed.
 spine <- tibble::tibble(
   date = seq(SAMPLE_START, max(policy$date), by = "month")
 )
-gap_m <- quarterly_to_monthly(spine, gap_q, "gap")
 
 dat <- spine |>
   dplyr::left_join(policy, by = "date") |>
   dplyr::left_join(infl,   by = "date") |>
   dplyr::left_join(heat,   by = "date") |>
-  dplyr::left_join(gap_m,  by = "date") |>
   dplyr::left_join(ecb,    by = "date") |>
-  dplyr::left_join(twi,    by = "date") |>
+  dplyr::left_join(reibor, by = "date") |>
   dplyr::arrange(date) |>
-  dplyr::mutate(d_ltwi = 100 * (log(twi) - log(dplyr::lag(twi)))) |>
-  dplyr::select(date, policy_rate, infl, heat, gap, ecb, d_ltwi)
+  dplyr::mutate(sp_r6 = .data$reibor6M - .data$policy_rate,
+                sp_r3 = .data$reibor3M - .data$policy_rate) |>
+  dplyr::select(date, policy_rate, infl, heat, sp_r6, sp_r3, ecb)
 
 # Estimation sample: rows where every modelled variable is present. policy_rate is
 # column 1 so it stays the forecast target.
@@ -87,23 +121,33 @@ origin_date <- max(dat_fit$date)
 # 3.0.0 FIT ----
 Y <- as.matrix(dplyr::select(dat_fit, -date))
 # Column order is load-bearing: policy_rate is column 1 so it stays the forecast
-# target sliced at 4.0.0, and these names index pred$fcast's third dimension.
+# target sliced at 4.0.0, and these names index the draws array's 3rd dimension.
 model_vars <- colnames(Y)
 fit <- BVAR::bvar(Y, lags = BVAR_LAGS, n_draw = N_DRAW, n_burn = N_BURN,
                   verbose = FALSE)
 
 # 4.0.0 FORECAST ----
-# predict() returns $fcast as draws x horizon x variable. Policy rate is variable 1.
-# Reshape the draws-x-horizon matrix to long (draw, horizon, rate) once; both
-# outputs build off it.
-pred <- predict(fit, horizon = HORIZON)
-policy_draws <- pred$fcast[, , 1]               # n_draw x HORIZON
+# Simulated from the posterior rather than via BVAR::predict(). v1 used
+# predict() on the grounds that a persistent level forecast is dominated by the
+# VAR dynamics and its bands "check out"; that was asserted, never measured, and
+# it is wrong. Backtesting the published bands against realised outcomes over 59
+# rolling origins (the PI-coverage section of policy_rate_spec_race.R) gives
+# predict() a 90% band that actually contains the outcome 52%/63%/59%/56% of the
+# time at h = 1/3/6/12 — every horizon rejects the nominal level at p < 1e-5, and
+# the failure is TOO NARROW, the opposite direction to the over-dispersion
+# helpers_bvar.R documents for the one-step FX case. bvar_simulate() over the
+# same origins gives 88%/92%/90%/83%, none of which is rejected at the 90% level.
+#
+# So the band source is now the same in A2 and A6. The 68% band remains too
+# narrow at h = 12 (46% against a nominal 68%, p < 0.001): the fan understates
+# uncertainty a year out, which is noted on the methodology page rather than
+# patched with a fudge factor.
+#
+# Returns draws x horizon x variable, the same shape predict()$fcast had.
+fcast <- bvar_simulate(fit, Y, lags = BVAR_LAGS, horizon = HORIZON)
 
-draws_long <- tibble::tibble(
-  draw    = rep(seq_len(nrow(policy_draws)), times = HORIZON),
-  horizon = rep(seq_len(HORIZON), each = nrow(policy_draws)),
-  rate    = as.numeric(policy_draws)
-)
+draws_long <- bvar_draws_long(fcast, 1L, HORIZON) |>
+  dplyr::rename(rate = "value")
 
 # 5.0.0 WRITE ----
 now <- Sys.time()
@@ -174,7 +218,7 @@ db_upsert(con, "bvar_policy_draws", draws_tbl,
 macro_tbl <- purrr::imap_dfr(
   stats::setNames(seq_along(model_vars), model_vars),
   function(v_index, v_name) {
-    bvar_draws_long(pred$fcast, v_index, HORIZON) |>
+    bvar_draws_long(fcast, v_index, HORIZON) |>
       bvar_bands(origin_date, QUANTILES) |>
       dplyr::mutate(variable = v_name)
   }) |>
@@ -190,5 +234,19 @@ db_ensure_table(con, "forecast_macro",
                          value = "DOUBLE PRECISION", model_version = "TEXT",
                          computed_at = "TIMESTAMPTZ"),
                 pk = c("origin_date", "horizon", "variable", "quantile"))
+
+# Clear any row at THIS origin for a variable this fit no longer models before
+# upserting. The PK is (origin_date, horizon, variable, quantile), so a variable
+# dropped from the set — `gap` and `d_ltwi` at the v1 -> v2 change — is never
+# overwritten by the upsert and would linger at the current origin as a stale
+# forecast the app would show beside the fresh ones. This deletes only the
+# current origin's orphans: earlier vintages keep their full v1 variable set,
+# which is the point of storing by origin.
+DBI::dbExecute(con, paste0(
+  "DELETE FROM forecast_macro WHERE origin_date = $1 AND source = 'bvar'",
+  " AND variable NOT IN (",
+  paste(DBI::dbQuoteString(con, model_vars), collapse = ", "), ")"),
+  params = list(origin_date))
+
 db_upsert(con, "forecast_macro", macro_tbl,
           conflict_cols = c("origin_date", "horizon", "variable", "quantile"))

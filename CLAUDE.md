@@ -76,9 +76,11 @@ Forecast tables in use:
   readings; `source` means reading-METHOD. Don't broaden it: the ordered-probit reading is a
   pending occupant, and mixing quantities in would leave it dense in one cell, empty in ten.
 - `forecast_macro (origin_date, horizon, variable, quantile)` — A2's joint fit for every
-  modelled variable (inflation, heat, gap, ECB, FX). Units differ per `variable`, so none is
-  stored; the app resolves them from `app/R/labels.R`. The policy rate appears here AND in
-  `forecast_policy_rate` on purpose — they must agree exactly (a free cross-check).
+  modelled variable (since A2-v2: inflation, heat, the two REIBOR spreads, ECB — `gap` and
+  `d_ltwi` only in pre-v2 vintages). Units differ per `variable`, so none is stored; the app
+  resolves them from `app/R/labels.R` — add a label there when the variable set changes. The
+  policy rate appears here AND in `forecast_policy_rate` on purpose — they must agree exactly
+  (a free cross-check).
 - `forecast_fx (origin_date, horizon, series, quantile)` + `bvar_fx_draws` — A6. `series`,
   not `variable`, because the target is a canonical `fx_daily.series` code.
 - `curve_params (date, curve, parameter)`, `curve_points (date, curve, maturity)`,
@@ -108,21 +110,40 @@ auction dates, not daily marks.
   with a known error sd of 2.40: fitted `sigma` is right (2.36) but `predict()` reports 5.7,
   and the ratio does NOT shrink at n = 1000 or 5000, so it is not parameter uncertainty.
   Use `bvar_simulate()` (simulates forward from each posterior draw) for anything where the
-  band matters — it recovers 2.34–2.36. A2 still uses `predict()` because a persistent LEVEL
-  forecast is dominated by the VAR dynamics and its bands check out; that is unverified for
-  any new module.
+  band matters — it recovers 2.34–2.36. **Every module now uses `bvar_simulate()`; never
+  publish a `predict()` band.** A2 used `predict()` until v2 on the claim that a persistent
+  LEVEL forecast's bands "check out" — that was asserted, never measured, and backtesting
+  them against realised outcomes (59 rolling origins) killed it: the nominal 90% band
+  contained the outcome 52/63/59/56% of the time at h=1/3/6/12, every horizon rejected at
+  p<1e-5. Note the direction is TOO NARROW, opposite to the synthetic-data over-dispersion
+  above — so `predict()` is not reliably wrong in one direction, which is why the rule is
+  "don't use it" rather than "rescale it". `bvar_simulate()` on the same origins gives
+  88/92/90/83%, none rejected. (A2-v2's 68% band is still too narrow at h=12: 46% vs 68%,
+  p<0.001 — documented, not patched.)
 - **Model files are sourced in sorted order**, so a module reading another's output must sort
   after it (`isk_path.R` after `heat_index.R`). Name files accordingly.
 
 ## A2 policy-rate forecast: two readings (SPEC wants three)
 
 `forecast_policy_rate` holds multiple readings, distinguished by `source`:
-- `bvar` (`policy_rate_path.R`) — the BVAR density (median + 5/16/50/84/95 bands), 18m. A level
-  VAR on a ~0.93-AR rate: it's persistence-dominated and does NOT anticipate announced policy
-  turns. Full posterior draws persisted to `bvar_policy_draws` (scenario-engine foundation).
+- `bvar` (`policy_rate_path.R`) — the BVAR density (median + 5/16/50/84/95 bands), 18m. Full
+  posterior draws persisted to `bvar_policy_draws` (scenario-engine foundation).
+  **v2 variable set: `policy_rate, infl, heat, sp_r6, sp_r3, ecb`** — the REIBOR 6M/3M
+  SPREADS over the policy rate replaced the output gap and the ISK log change, which cut RMSE
+  13/31/33/21% at h=1/3/6/12 (`checks/policy_rate_spec_race.R`, 12 specs × 60 origins; the win
+  is broad — 66-75% of individual origins, 5 of 6 years). Because it now carries the spreads it
+  partly DOES anticipate turns, unlike v1. The gap was dropped at negligible cost (+0.001 R² on
+  the 6m change). **A better inflation forecast does NOT help this model** — conditioning on the
+  ARIMA path moves RMSE <1% and hurts at 12m, because on the 6m policy-rate CHANGE `heat` adds
+  +0.22 R² and `rdiff` +0.18 while `infl` adds −0.03. Don't re-litigate without re-running the race.
+- Dropping a variable from the set ORPHANS its rows in `forecast_macro` at the current origin
+  (PK is `origin_date, horizon, variable, quantile`, so the upsert can't overwrite what it no
+  longer writes). The module DELETEs non-modelled variables at its own origin before upserting;
+  earlier vintages keep their full old set on purpose.
 - `market` (`policy_rate_market.R`) — the market-implied path from the REIBOR money-market curve,
-  point path to 6m only (REIBOR doesn't inform further). This is the reading that prices turns
-  the BVAR can't; term premia frozen over 2015-2019 in `market_term_premium`.
+  point path to 6m only (REIBOR doesn't inform further). Term premia frozen over 2015-2019 in
+  `market_term_premium`. Still a distinct reading from the BVAR despite v2 sharing its input:
+  this one inverts the curve directly, the BVAR embeds the spreads in a system.
 - Each source has its OWN origin (BVAR = heat-index month; market = latest REIBOR month) — don't
   assume one `max(origin_date)` across sources.
 - Still to build: the ordered-probit reaction-function reading (P(cut/hold/hike) per meeting).
