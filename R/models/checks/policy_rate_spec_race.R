@@ -26,9 +26,10 @@
 #
 # WHAT THIS DOES NOT SHOW. A better inflation forecast does not help here. The
 # companion conclusion from inflation_forecast_race.R is that ARIMA beats the
-# BVAR on inflation by ~31%, but feeding that path in as a hard condition moves
-# the policy-rate RMSE by under 1% (and hurts at 12m) on BOTH a2_base and the
-# winner. Section 6 shows why: predicting the 6-month CHANGE in the policy rate,
+# BVAR on inflation by ~31%; conditional_inflation_check.R then feeds that path in
+# as a hard condition and measures the effect: -1.3%/-8.9%/-5.3%/+10.9% on
+# policy-rate RMSE at h=1/3/6/12, no horizon significant (DM p = 0.20-0.60).
+# Section 6 shows why: predicting the 6-month CHANGE in the policy rate,
 # `heat` adds +0.22 R-squared and `rdiff` +0.18, while `infl` adds -0.03. The
 # policy rate's forecastable part is driven by the real/external stance and the
 # money-market curve, not by the inflation print.
