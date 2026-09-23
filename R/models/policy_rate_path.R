@@ -18,7 +18,7 @@
 # policy_rate. Target tables (upsert):
 #   forecast_policy_rate  (origin_date, horizon, quantile)  — central path + bands
 #   bvar_policy_draws     (origin_date, horizon, draw)       — full policy-rate draws
-#   forecast_macro        (origin_date, horizon, variable, quantile) — the SAME
+#   forecast_macro        (origin_date, horizon, variable, source, quantile) — the SAME
 #     fit's density for every modelled variable (inflation, heat, the two REIBOR
 #     spreads, ECB), not just the policy rate. The VAR is a joint system, so
 #     these come free. NOTE the v2 variable set changed which rows appear here:
@@ -46,8 +46,14 @@
 #
 # NOTE ON WHAT DID *NOT* WORK. A better inflation forecast does not help here.
 # ARIMA beats this BVAR on inflation by ~31% (inflation_forecast_race.R), but
-# conditioning the system on that path moves the policy-rate RMSE by under 1%
-# and hurts at 12m, on both v1 and v2. Predicting the 6-month policy-rate CHANGE,
+# conditioning the system on that path is not a win. MEASURED (61 rolling origins,
+# 2020-09..2025-09, conditional_inflation_check.R): fixing `infl` to the ARIMA path
+# and drawing the other five from their conditional distribution moves policy-rate
+# RMSE by -1.3%/-8.9%/-5.3%/+10.9% at h=1/3/6/12 — it helps in the middle and hurts
+# a year out, and NO horizon is significant (Diebold-Mariano p = 0.20-0.60).
+# (An earlier version of this comment claimed "under 1%" at every horizon; that was
+# asserted, never measured, and is wrong at h=3. The conclusion is unchanged.)
+# Predicting the 6-month policy-rate CHANGE,
 # `heat` adds +0.22 R-squared and the ECB differential +0.18, while `infl` adds
 # -0.03: the forecastable part of the policy rate is the stance and the
 # money-market curve, not the inflation print. Do not re-litigate this without
@@ -233,13 +239,16 @@ db_ensure_table(con, "forecast_macro",
                          source = "TEXT", quantile = "DOUBLE PRECISION",
                          value = "DOUBLE PRECISION", model_version = "TEXT",
                          computed_at = "TIMESTAMPTZ"),
-                pk = c("origin_date", "horizon", "variable", "quantile"))
+                pk = c("origin_date", "horizon", "variable", "source", "quantile"))
 
 # Clear any row at THIS origin for a variable this fit no longer models before
-# upserting. The PK is (origin_date, horizon, variable, quantile), so a variable
-# dropped from the set — `gap` and `d_ltwi` at the v1 -> v2 change — is never
-# overwritten by the upsert and would linger at the current origin as a stale
-# forecast the app would show beside the fresh ones. This deletes only the
+# upserting. The PK is (origin_date, horizon, variable, source, quantile) — it
+# carries `source` because inflation_arima.R publishes a SECOND `infl` path at
+# the same origin (source = "arima") and without it the two would collide and
+# silently overwrite each other. A variable dropped from the set — `gap` and
+# `d_ltwi` at the v1 -> v2 change — is never overwritten by the upsert and would
+# linger at the current origin as a stale forecast the app would show beside the
+# fresh ones. This deletes only the
 # current origin's orphans: earlier vintages keep their full v1 variable set,
 # which is the point of storing by origin.
 DBI::dbExecute(con, paste0(
@@ -249,4 +258,5 @@ DBI::dbExecute(con, paste0(
   params = list(origin_date))
 
 db_upsert(con, "forecast_macro", macro_tbl,
-          conflict_cols = c("origin_date", "horizon", "variable", "quantile"))
+          conflict_cols = c("origin_date", "horizon", "variable", "source",
+                            "quantile"))

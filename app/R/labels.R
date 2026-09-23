@@ -35,10 +35,18 @@ LABELS <- tibble::tribble(
   "sentiment",              "group",   "Væntingar",                      "Sentiment",                  "",    5L,    NA,
   "financial",              "group",   "Fjármálaleg skilyrði",           "Financial conditions",       "",    6L,    NA,
 
-  # --- forecast readings (a third source appears here when A2 gains it) ------
+  # --- forecast readings (a third policy-rate source appears when A2 gains it) --
+  # `bvar` is A2's joint fit. On INFLATION it is deliberately NOT the headline:
+  # inflation_arima.R publishes a better ARIMA path (source = "arima") and both
+  # are shown, because A2's policy-rate path is only internally consistent with
+  # A2's OWN inflation path. The labels must therefore keep them distinguishable.
   "bvar",                   "source",  "Líkanspá",                       "Model forecast",             "%",   1L,    NA,
   "market",                 "source",  "Markaðsvænting",                 "Market-implied",             "%",   2L,    NA,
   "reaction",               "source",  "Viðbragðsfall",                  "Reaction function",          "%",   3L,    NA,
+  "arima",                  "source",  "Verðbólguspá",                   "Inflation forecast",         "%",   4L,    NA,
+  # Shown on the policy-rate page beside the BVAR fan to name what A2's own
+  # inflation path IS, so the two inflation lines cannot be read as a conflict.
+  "bvar_infl_path",         "ui",      "Verðbólguferill að baki stýrivaxtaspá", "Inflation path underlying the policy-rate forecast", "%", 1L, NA,
 
   # --- A3 curves (curve_points.curve) ----------------------------------------
   "nominal",                "curve",   "Óverðtryggður ferill",           "Nominal curve",              "%",   1L,    NA,
